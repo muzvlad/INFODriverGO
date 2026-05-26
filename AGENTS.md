@@ -1,6 +1,10 @@
 # INFODriverGO — Changelog
 
-## v1.07 (current)
+## v1.08 (current)
+- Events form: dynamic fields — date picker for одноразово, day-of-week dropdown for еженедельно, day-of-month dropdown for ежемесячно, time input for ежедневно
+- Birthdays/Weddings: add date picker input
+
+## v1.07
 - Add AGENTS.md with changelog
 
 ## v1.06

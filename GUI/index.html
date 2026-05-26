@@ -108,6 +108,7 @@ td .btn{padding:4px 10px;font-size:12px}
       <div class="group-selector"><select id="bd-group" onchange="loadBD()"></select></div>
       <div class="form-row">
         <input id="bd-name" placeholder="Имя">
+        <input id="bd-date" type="date" onchange="fillDateFields('bd')" style="max-width:160px">
         <input id="bd-day" placeholder="ДД" style="max-width:60px">
         <input id="bd-month" placeholder="ММ" style="max-width:60px">
         <input id="bd-year" placeholder="ГГГГ (необяз.)" style="max-width:100px">
@@ -121,6 +122,7 @@ td .btn{padding:4px 10px;font-size:12px}
       <div class="group-selector"><select id="wed-group" onchange="loadWed()"></select></div>
       <div class="form-row">
         <input id="wed-name" placeholder="Имя">
+        <input id="wed-date" type="date" onchange="fillDateFields('wed')" style="max-width:160px">
         <input id="wed-day" placeholder="ДД" style="max-width:60px">
         <input id="wed-month" placeholder="ММ" style="max-width:60px">
         <input id="wed-year" placeholder="ГГГГ (необяз.)" style="max-width:100px">
@@ -133,14 +135,14 @@ td .btn{padding:4px 10px;font-size:12px}
       <h3>📅 События</h3>
       <div class="group-selector"><select id="evt-group" onchange="loadEvt()"></select></div>
       <div class="form-row">
-        <input id="evt-name" placeholder="Название">
-        <select id="evt-type">
+        <input id="evt-name" placeholder="Название" style="flex:0.8">
+        <select id="evt-type" onchange="updateEvtFields()">
           <option value="ежедневно">Ежедневно</option>
           <option value="еженедельно">Еженедельно</option>
           <option value="ежемесячно">Ежемесячно</option>
           <option value="одноразово">Одноразово</option>
         </select>
-        <input id="evt-time" placeholder="ЧЧ:ММ (или день ЧЧ:ММ)" style="flex:1.5">
+        <div id="evt-fields" style="display:contents"></div>
         <input id="evt-text" placeholder="Текст (необяз.)" style="flex:1.5">
         <button class="btn btn-primary" onclick="addEvt()">➕ Добавить</button>
       </div>
@@ -375,8 +377,62 @@ async function delWed(cid, name){
   } catch(e){ toast('❌ ' + e.message, 'error') }
 }
 
+// Helpers
+function fillDateFields(prefix){
+  const val = document.getElementById(prefix + '-date').value;
+  if(!val) return;
+  const parts = val.split('-');
+  document.getElementById(prefix + '-day').value = parseInt(parts[2]);
+  document.getElementById(prefix + '-month').value = parseInt(parts[1]);
+  document.getElementById(prefix + '-year').value = parseInt(parts[0]);
+}
+
+function updateEvtFields(){
+  const type = document.getElementById('evt-type').value;
+  const container = document.getElementById('evt-fields');
+  const dayNames = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
+  let html = '';
+  switch(type){
+    case 'ежедневно':
+      html = '<input type="time" id="evt-time-1" style="flex:1">';
+      break;
+    case 'еженедельно':
+      html = '<select id="evt-day">' + dayNames.map((d,i) => `<option value="${d}">${d.charAt(0).toUpperCase()+d.slice(1)}</option>`).join('') + '</select>';
+      html += '<input type="time" id="evt-time-1" style="flex:1">';
+      break;
+    case 'ежемесячно':
+      html = '<select id="evt-day">';
+      for(let i=1;i<=31;i++) html += `<option value="${i}">${i}</option>`;
+      html += '</select>';
+      html += '<input type="time" id="evt-time-1" style="flex:1">';
+      break;
+    case 'одноразово':
+      html = '<input type="date" id="evt-date" style="flex:1">';
+      html += '<input type="time" id="evt-time-1" style="flex:1">';
+      break;
+  }
+  container.innerHTML = html;
+}
+
+function getEvtTime(){
+  const type = document.getElementById('evt-type').value;
+  const time = document.getElementById('evt-time-1').value;
+  if(!time) return '';
+  switch(type){
+    case 'ежедневно': return time;
+    case 'еженедельно': return document.getElementById('evt-day').value + ' ' + time;
+    case 'ежемесячно': return document.getElementById('evt-day').value + ' ' + time;
+    case 'одноразово':
+      const date = document.getElementById('evt-date').value;
+      if(!date) return '';
+      return date.split('-').reverse().join('.') + ' ' + time;
+  }
+  return '';
+}
+
 // Events
 async function loadEvt(){
+  updateEvtFields();
   const cid = document.getElementById('evt-group').value;
   const el = document.getElementById('evt-list');
   if(!cid){ el.innerHTML = ''; return }
@@ -399,7 +455,7 @@ async function addEvt(){
   if(!cid){ toast('Выберите группу', 'error'); return }
   const name = document.getElementById('evt-name').value.trim();
   const type = document.getElementById('evt-type').value;
-  const time = document.getElementById('evt-time').value.trim();
+  const time = getEvtTime();
   const text = document.getElementById('evt-text').value.trim();
   if(!name || !time){ toast('Заполните название и время', 'error'); return }
   try {
@@ -407,8 +463,8 @@ async function addEvt(){
     toast('✅ Добавлено', 'success');
     loadEvt();
     document.getElementById('evt-name').value = '';
-    document.getElementById('evt-time').value = '';
     document.getElementById('evt-text').value = '';
+    updateEvtFields();
   } catch(e){ toast('❌ ' + e.message, 'error') }
 }
 
