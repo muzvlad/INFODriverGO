@@ -227,17 +227,11 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	}
 	s.mu.RUnlock()
 
-	if len(toTrigger) > 0 {
-		log.Printf("[SCHEDULER] Group %s: triggering %d/%d events", chatID, len(toTrigger), eventCount)
-	}
-
-	for _, t := range toTrigger {
-		go s.triggerEvent(t.job)
-	}
-
+	log.Printf("[SCHEDULER] Group %s: checkEventJobs total=%d toTrigger=%d", chatID, eventCount, len(toTrigger))
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
+			go s.triggerEvent(t.job)
 			s.rescheduleEvent(t.key, t.job)
 		}
 		s.mu.Unlock()
@@ -262,13 +256,11 @@ func (s *Scheduler) checkReminderJobs(chatID string, now time.Time) {
 	}
 	s.mu.RUnlock()
 
-	for _, t := range toTrigger {
-		go s.triggerReminder(t.job)
-	}
-
+	log.Printf("[SCHEDULER] Group %s: checkReminderJobs toTrigger=%d", chatID, len(toTrigger))
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
+			go s.triggerReminder(t.job)
 			s.rescheduleReminder(t.key, t.job)
 		}
 		s.mu.Unlock()
