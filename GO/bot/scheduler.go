@@ -73,14 +73,23 @@ func (s *Scheduler) RestartChan() <-chan struct{} {
 func (s *Scheduler) run() {
 	defer s.wg.Done()
 
+	log.Printf("[SCHEDULER] Starting scheduler...")
 	s.loadEventJobs()
 
 	for {
-		s.checkJobs()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[SCHEDULER] Panic recovered: %v", r)
+				}
+			}()
+			s.checkJobs()
+		}()
 		time.Sleep(30 * time.Second)
 
 		select {
 		case <-s.stopChan:
+			log.Printf("[SCHEDULER] Stopped")
 			return
 		default:
 		}
@@ -127,15 +136,12 @@ func (s *Scheduler) checkDailyRestart(now time.Time) {
 func (s *Scheduler) checkDailyNotifications(chatID string, now time.Time) {
 	settings := s.db.GetGroupSettings(chatID)
 	
-	log.Printf("[SCHEDULER] Group %s: notifications_enabled=%v, time=%s", chatID, settings.NotificationsEnabled, settings.NotificationTime)
-	
 	if !settings.NotificationsEnabled {
 		return
 	}
 
 	notificationTime, err := time.Parse("15:04", settings.NotificationTime)
 	if err != nil {
-		log.Printf("[SCHEDULER] Error parsing time %s: %v", settings.NotificationTime, err)
 		return
 	}
 
@@ -146,21 +152,17 @@ func (s *Scheduler) checkDailyNotifications(chatID string, now time.Time) {
 	s.mu.RLock()
 	if _, exists := s.activeJobs[key]; exists {
 		s.mu.RUnlock()
-		log.Printf("[SCHEDULER] Job %s already ran today", key)
 		return
 	}
 	s.mu.RUnlock()
 
 	diff := now.Sub(todayScheduled)
-	log.Printf("[SCHEDULER] Group %s: scheduled=%s, now=%s, diff=%v", chatID, todayScheduled.Format("15:04:05"), now.Format("15:04:05"), diff)
-	
+	log.Printf("[SCHEDULER] Group %s: checking daily notify: now=%s, scheduled=%s, diff=%v", chatID, now.Format("15:04:05"), todayScheduled.Format("15:04:05"), diff)
 	if diff >= 0 && diff <= 3*time.Minute {
-		log.Printf("[SCHEDULER] Time matches! Sending notification for group %s", chatID)
-		
+		log.Printf("[SCHEDULER] Group %s: time matches, sending daily notification", chatID)
 		s.mu.Lock()
 		s.activeJobs[key] = now
 		s.mu.Unlock()
-
 		s.sendDailyNotifications(chatID)
 	}
 }
@@ -213,6 +215,7 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	}
 
 	s.mu.RLock()
+	eventCount := len(s.eventJobs)
 	var toTrigger []triggered
 	for key, job := range s.eventJobs {
 		if job.ChatID != chatID {
@@ -223,6 +226,10 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 		}
 	}
 	s.mu.RUnlock()
+
+	if len(toTrigger) > 0 {
+		log.Printf("[SCHEDULER] Group %s: triggering %d/%d events", chatID, len(toTrigger), eventCount)
+	}
 
 	for _, t := range toTrigger {
 		s.triggerEvent(t.job)
