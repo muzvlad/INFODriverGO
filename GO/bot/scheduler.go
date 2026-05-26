@@ -207,34 +207,64 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 }
 
 func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	type triggered struct {
+		key string
+		job *EventJob
+	}
 
+	s.mu.RLock()
+	var toTrigger []triggered
 	for key, job := range s.eventJobs {
 		if job.ChatID != chatID {
 			continue
 		}
-
 		if now.After(job.NextRun) || now.Equal(job.NextRun) {
-			s.triggerEvent(job)
-			s.rescheduleEvent(key, job)
+			toTrigger = append(toTrigger, triggered{key, job})
 		}
+	}
+	s.mu.RUnlock()
+
+	for _, t := range toTrigger {
+		s.triggerEvent(t.job)
+	}
+
+	if len(toTrigger) > 0 {
+		s.mu.Lock()
+		for _, t := range toTrigger {
+			s.rescheduleEvent(t.key, t.job)
+		}
+		s.mu.Unlock()
 	}
 }
 
 func (s *Scheduler) checkReminderJobs(chatID string, now time.Time) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	type triggered struct {
+		key string
+		job *ReminderJob
+	}
 
+	s.mu.RLock()
+	var toTrigger []triggered
 	for key, job := range s.reminderJobs {
 		if job.ChatID != chatID {
 			continue
 		}
-
 		if now.After(job.NextRun) || now.Equal(job.NextRun) {
-			s.triggerReminder(job)
-			s.rescheduleReminder(key, job)
+			toTrigger = append(toTrigger, triggered{key, job})
 		}
+	}
+	s.mu.RUnlock()
+
+	for _, t := range toTrigger {
+		s.triggerReminder(t.job)
+	}
+
+	if len(toTrigger) > 0 {
+		s.mu.Lock()
+		for _, t := range toTrigger {
+			s.rescheduleReminder(t.key, t.job)
+		}
+		s.mu.Unlock()
 	}
 }
 

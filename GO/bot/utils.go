@@ -50,6 +50,10 @@ func getDaysUntil(day, month int) int {
 	now := time.Now()
 	thisYear := time.Date(now.Year(), time.Month(month), day, 0, 0, 0, 0, now.Location())
 
+	if thisYear.Year() == now.Year() && thisYear.Month() == now.Month() && thisYear.Day() == now.Day() {
+		return 0
+	}
+
 	if thisYear.Before(now) {
 		thisYear = thisYear.AddDate(1, 0, 0)
 	}
