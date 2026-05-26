@@ -234,38 +234,16 @@ function disconnect(){
 // Restore saved token
 (function(){
   if(localStorage.getItem('infodriver_token')) document.getElementById('tok').value = localStorage.getItem('infodriver_token');
-  // If opened from file:// - auto-detect server by hostname
-  if(window.location.protocol === 'file:') {
-    document.title = 'INFODriver Admin (поиск сервера...)';
-    tryHostname('walhalla');
-  }
   // Init events fields
-  (function(){
+  try {
     var days = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
     var selWeek = document.getElementById('evt-day-weekly');
-    if(!selWeek) return;
-    days.forEach(function(d){ selWeek.innerHTML += '<option value="'+d+'">'+d.charAt(0).toUpperCase()+d.slice(1)+'</option>'; });
+    if(selWeek) days.forEach(function(d){ selWeek.innerHTML += '<option value="'+d+'">'+d.charAt(0).toUpperCase()+d.slice(1)+'</option>'; });
     var selMonth = document.getElementById('evt-day-monthly');
-    for(var i=1;i<=31;i++) selMonth.innerHTML += '<option value="'+i+'">'+i+'</option>';
+    if(selMonth) for(var i=1;i<=31;i++) selMonth.innerHTML += '<option value="'+i+'">'+i+'</option>';
     updateEvtFields();
-  })();
+  } catch(e) { console.log('Init events error:', e); }
 })();
-
-async function tryHostname(name) {
-  // Try mDNS (.local) first, then plain hostname
-  const urls = [`http://${name}.local:8080`, `http://${name}:8080`, 'http://raspberrypi.local:8080'];
-  for(const url of urls) {
-    try {
-      const r = await fetch(url + '/health');
-      if(r.ok) {
-        document.getElementById('srv').value = url;
-        document.title = 'INFODriver Admin';
-        return;
-      }
-    } catch(e) {}
-  }
-  document.title = 'INFODriver Admin';
-}
 
 // Nav tabs
 document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
