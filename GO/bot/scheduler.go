@@ -218,11 +218,11 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	eventCount := len(s.eventJobs)
 	var toTrigger []triggered
 	for key, job := range s.eventJobs {
-		if job.ChatID != chatID {
-			continue
-		}
-		if now.After(job.NextRun) || now.Equal(job.NextRun) {
-			toTrigger = append(toTrigger, triggered{key, job})
+		if job.ChatID == chatID {
+			log.Printf("[SCHEDULER] checkEventJobs event: key=%s name=%s nextRun=%s chatID=%s", key, job.Name, job.NextRun.Format("15:04:05"), chatID)
+			if now.After(job.NextRun) || now.Equal(job.NextRun) {
+				toTrigger = append(toTrigger, triggered{key, job})
+			}
 		}
 	}
 	s.mu.RUnlock()
