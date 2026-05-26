@@ -1,6 +1,9 @@
 # INFODriverGO — Changelog
 
-## v1.08 (current)
+## v1.09 (current)
+- Fix events form: show/hide pre-built fields instead of innerHTML — buttons now work
+
+## v1.08
 - Events form: dynamic fields — date picker for одноразово, day-of-week dropdown for еженедельно, day-of-month dropdown for ежемесячно, time input for ежедневно
 - Birthdays/Weddings: add date picker input
 

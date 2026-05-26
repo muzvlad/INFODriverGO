@@ -134,7 +134,7 @@ td .btn{padding:4px 10px;font-size:12px}
     <div class="tab" id="tab-events">
       <h3>📅 События</h3>
       <div class="group-selector"><select id="evt-group" onchange="loadEvt()"></select></div>
-      <div class="form-row">
+      <div class="form-row" id="evt-form">
         <input id="evt-name" placeholder="Название" style="flex:0.8">
         <select id="evt-type" onchange="updateEvtFields()">
           <option value="ежедневно">Ежедневно</option>
@@ -142,7 +142,15 @@ td .btn{padding:4px 10px;font-size:12px}
           <option value="ежемесячно">Ежемесячно</option>
           <option value="одноразово">Одноразово</option>
         </select>
-        <div id="evt-fields" style="display:contents"></div>
+        <div id="evt-fields" style="display:flex;gap:8px;flex:2;flex-wrap:wrap">
+          <input type="time" id="evt-time-daily" class="evt-field" data-for="ежедневно">
+          <select id="evt-day-weekly" class="evt-field" data-for="еженедельно"></select>
+          <input type="time" id="evt-time-weekly" class="evt-field" data-for="еженедельно">
+          <select id="evt-day-monthly" class="evt-field" data-for="ежемесячно"></select>
+          <input type="time" id="evt-time-monthly" class="evt-field" data-for="ежемесячно">
+          <input type="date" id="evt-date-once" class="evt-field" data-for="одноразово">
+          <input type="time" id="evt-time-once" class="evt-field" data-for="одноразово">
+        </div>
         <input id="evt-text" placeholder="Текст (необяз.)" style="flex:1.5">
         <button class="btn btn-primary" onclick="addEvt()">➕ Добавить</button>
       </div>
@@ -231,6 +239,16 @@ function disconnect(){
     document.title = 'INFODriver Admin (поиск сервера...)';
     tryHostname('walhalla');
   }
+  // Init events fields
+  (function(){
+    var days = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
+    var selWeek = document.getElementById('evt-day-weekly');
+    if(!selWeek) return;
+    days.forEach(function(d){ selWeek.innerHTML += '<option value="'+d+'">'+d.charAt(0).toUpperCase()+d.slice(1)+'</option>'; });
+    var selMonth = document.getElementById('evt-day-monthly');
+    for(var i=1;i<=31;i++) selMonth.innerHTML += '<option value="'+i+'">'+i+'</option>';
+    updateEvtFields();
+  })();
 })();
 
 async function tryHostname(name) {
@@ -389,43 +407,25 @@ function fillDateFields(prefix){
 
 function updateEvtFields(){
   const type = document.getElementById('evt-type').value;
-  const container = document.getElementById('evt-fields');
-  const dayNames = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
-  let html = '';
-  switch(type){
-    case 'ежедневно':
-      html = '<input type="time" id="evt-time-1" style="flex:1">';
-      break;
-    case 'еженедельно':
-      html = '<select id="evt-day">' + dayNames.map((d,i) => `<option value="${d}">${d.charAt(0).toUpperCase()+d.slice(1)}</option>`).join('') + '</select>';
-      html += '<input type="time" id="evt-time-1" style="flex:1">';
-      break;
-    case 'ежемесячно':
-      html = '<select id="evt-day">';
-      for(let i=1;i<=31;i++) html += `<option value="${i}">${i}</option>`;
-      html += '</select>';
-      html += '<input type="time" id="evt-time-1" style="flex:1">';
-      break;
-    case 'одноразово':
-      html = '<input type="date" id="evt-date" style="flex:1">';
-      html += '<input type="time" id="evt-time-1" style="flex:1">';
-      break;
-  }
-  container.innerHTML = html;
+  document.querySelectorAll('.evt-field').forEach(el => {
+    el.style.display = el.dataset.for === type ? '' : 'none';
+  });
 }
 
 function getEvtTime(){
   const type = document.getElementById('evt-type').value;
-  const time = document.getElementById('evt-time-1').value;
-  if(!time) return '';
+  const time = document.querySelector('.evt-field[data-for="' + type + '"][type="time"]');
+  if(!time || !time.value) return '';
   switch(type){
-    case 'ежедневно': return time;
-    case 'еженедельно': return document.getElementById('evt-day').value + ' ' + time;
-    case 'ежемесячно': return document.getElementById('evt-day').value + ' ' + time;
+    case 'ежедневно': return time.value;
+    case 'еженедельно':
+      return document.getElementById('evt-day-weekly').value + ' ' + time.value;
+    case 'ежемесячно':
+      return document.getElementById('evt-day-monthly').value + ' ' + time.value;
     case 'одноразово':
-      const date = document.getElementById('evt-date').value;
-      if(!date) return '';
-      return date.split('-').reverse().join('.') + ' ' + time;
+      const date = document.getElementById('evt-date-once');
+      if(!date || !date.value) return '';
+      return date.value.split('-').reverse().join('.') + ' ' + time.value;
   }
   return '';
 }
