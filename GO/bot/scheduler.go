@@ -195,7 +195,7 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 		message := fmt.Sprintf("🎉 Сегодня дни рождения у: %s! 🎂\n\n", strings.Join(birthdayNames, ", "))
 		message += randomCongratulation()
 		log.Printf("[SCHEDULER] Sending birthday notification: %s", message)
-		sendMessage(chatID, message)
+		go sendMessage(chatID, message)
 	} else {
 		log.Printf("[SCHEDULER] No birthdays today in group %s", chatID)
 	}
@@ -204,7 +204,7 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 		message := fmt.Sprintf("💍 Сегодня годовщины свадеб у: %s! 🎊\n\n", strings.Join(weddingNames, ", "))
 		message += randomWeddingCongratulation()
 		log.Printf("[SCHEDULER] Sending wedding notification: %s", message)
-		sendMessage(chatID, message)
+		go sendMessage(chatID, message)
 	}
 }
 
@@ -232,7 +232,7 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	}
 
 	for _, t := range toTrigger {
-		s.triggerEvent(t.job)
+		go s.triggerEvent(t.job)
 	}
 
 	if len(toTrigger) > 0 {
@@ -263,7 +263,7 @@ func (s *Scheduler) checkReminderJobs(chatID string, now time.Time) {
 	s.mu.RUnlock()
 
 	for _, t := range toTrigger {
-		s.triggerReminder(t.job)
+		go s.triggerReminder(t.job)
 	}
 
 	if len(toTrigger) > 0 {
@@ -297,9 +297,7 @@ func (s *Scheduler) rescheduleEvent(key string, job *EventJob) {
 	case "ежемесячно":
 		job.NextRun = job.NextRun.AddDate(0, 1, 0)
 	case "одноразово":
-		s.mu.Lock()
 		delete(s.eventJobs, key)
-		s.mu.Unlock()
 		return
 	}
 
@@ -376,7 +374,7 @@ func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 		s.mu.Lock()
 		s.activeJobs[key] = now
 		s.mu.Unlock()
-		s.sendDailyNotifications(chatID)
+		go s.sendDailyNotifications(chatID)
 	}
 }
 
