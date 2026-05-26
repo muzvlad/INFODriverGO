@@ -351,6 +351,33 @@ func (s *Scheduler) RemoveGroupJob(chatID string) {
 
 func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 	log.Printf("[SCHEDULER] UpdateGroupJobTime called for %s", chatID)
+
+	now := time.Now()
+	today := now.Format("2006-01-02")
+	key := "notify_" + chatID + "_" + today
+
+	s.mu.Lock()
+	delete(s.activeJobs, key)
+	s.mu.Unlock()
+
+	settings := s.db.GetGroupSettings(chatID)
+	if !settings.NotificationsEnabled {
+		return
+	}
+
+	notificationTime, err := time.Parse("15:04", settings.NotificationTime)
+	if err != nil {
+		return
+	}
+
+	todayScheduled := time.Date(now.Year(), now.Month(), now.Day(), notificationTime.Hour(), notificationTime.Minute(), 0, 0, now.Location())
+	if now.After(todayScheduled) && now.Sub(todayScheduled) <= 2*time.Hour {
+		log.Printf("[SCHEDULER] Time %s already passed for today, sending immediately", settings.NotificationTime)
+		s.mu.Lock()
+		s.activeJobs[key] = now
+		s.mu.Unlock()
+		s.sendDailyNotifications(chatID)
+	}
 }
 
 func (s *Scheduler) SetupEventJobs(chatID string) {

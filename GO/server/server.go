@@ -163,6 +163,10 @@ func (s *Server) handleGroupDetail(w http.ResponseWriter, r *http.Request) {
 				s.db.SetNotificationTime(id, time)
 			}
 
+			if s.onEventsChanged != nil {
+				s.onEventsChanged(id)
+			}
+
 			s.sendSuccess(w, map[string]string{"status": "updated"})
 		default:
 			s.sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
