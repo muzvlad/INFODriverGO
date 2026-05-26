@@ -75,6 +75,8 @@ func (s *Scheduler) run() {
 
 	log.Printf("[SCHEDULER] Starting scheduler...")
 	s.loadEventJobs()
+	s.checkJobs()
+	log.Printf("[SCHEDULER] Initial catch-up done")
 
 	for {
 		func() {
@@ -215,14 +217,19 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	}
 
 	s.mu.RLock()
-	eventCount := len(s.eventJobs)
 	var toTrigger []triggered
 	for key, job := range s.eventJobs {
 		if job.ChatID == chatID {
-			log.Printf("[SCHEDULER] checkEventJobs event: key=%s name=%s nextRun=%s chatID=%s", key, job.Name, job.NextRun.Format("15:04:05"), chatID)
+			log.Printf("[SCHEDULER] checkEventJobs event: key=%s name=%s nextRun=%s chatID=%s", key, job.Name, job.NextRun.Format("2006-01-02 15:04:05"), chatID)
 			if now.After(job.NextRun) || now.Equal(job.NextRun) {
 				toTrigger = append(toTrigger, triggered{key, job})
 			}
+		}
+	}
+	eventCount := 0
+	for _, job := range s.eventJobs {
+		if job.ChatID == chatID {
+			eventCount++
 		}
 	}
 	s.mu.RUnlock()
@@ -231,8 +238,13 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
-			go s.triggerEvent(t.job)
-			s.rescheduleEvent(t.key, t.job)
+			if now.Sub(t.job.NextRun) > 10*time.Minute {
+				log.Printf("[SCHEDULER] Skipping late trigger for %s (%.0fs past), rescheduling", t.key, now.Sub(t.job.NextRun).Seconds())
+				s.rescheduleEvent(t.key, t.job)
+			} else {
+				go s.triggerEvent(t.job)
+				s.rescheduleEvent(t.key, t.job)
+			}
 		}
 		s.mu.Unlock()
 	}
@@ -403,7 +415,7 @@ func (s *Scheduler) SetupEventJobs(chatID string) {
 		}
 
 		s.eventJobs[jobKey] = job
-		log.Printf("[SCHEDULER] Setup event job: %s, next run: %s", event.Name, nextRun.Format("15:04:05"))
+		log.Printf("[SCHEDULER] Setup event job: %s, next run: %s", event.Name, nextRun.Format("2006-01-02 15:04:05"))
 	}
 }
 
@@ -418,9 +430,6 @@ func (s *Scheduler) calculateNextEventRun(eventType, timeStr string, now time.Ti
 	case "ежедневно":
 		hour, minute := parseTimeStr(timeStr)
 		next := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-		if next.Before(now) {
-			next = next.AddDate(0, 0, 1)
-		}
 		return next
 
 	case "еженедельно", "двухнедельно":
