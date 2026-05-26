@@ -1,0 +1,19 @@
+# Go
+GO/infodriver.exe
+GO/infodriver
+GO/bot.log
+GO/logs/
+GO/bot.db
+GO/bot.db-shm
+GO/bot.db-wal
+GO/groups/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
+
+# Old unused code
+internal/

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INFODriver Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+.hidden{display:none!important}
+/* Login */
+#login{max-width:400px;margin:100px auto;padding:32px;background:#161b22;border-radius:12px;border:1px solid #30363d}
+#login h1{font-size:20px;margin-bottom:24px;text-align:center;color:#f0f6fc}
+#login label{display:block;margin:12px 0 4px;font-size:13px;color:#8b949e}
+#login input{width:100%;padding:10px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:14px}
+#login input:focus{outline:none;border-color:#58a6ff}
+#login button{width:100%;margin-top:20px;padding:10px;background:#238636;border:none;border-radius:6px;color:#fff;font-size:14px;cursor:pointer;font-weight:600}
+#login button:hover{background:#2ea043}
+#login .hint{font-size:12px;color:#8b949e;margin-top:16px;text-align:center}
+/* App */
+#app{display:flex;min-height:100vh}
+/* Sidebar */
+#sidebar{width:220px;background:#161b22;border-right:1px solid #30363d;padding:16px 0;flex-shrink:0}
+#sidebar h2{padding:0 16px 16px;font-size:16px;color:#f0f6fc;border-bottom:1px solid #30363d;margin-bottom:8px}
+#sidebar .nav-item{padding:10px 16px;cursor:pointer;color:#8b949e;font-size:14px;transition:.15s}
+#sidebar .nav-item:hover{color:#f0f6fc;background:#1c2128}
+#sidebar .nav-item.active{color:#f0f6fc;background:#1f6feb22;border-right:2px solid #1f6feb}
+#sidebar .sep{border-top:1px solid #30363d;margin:8px 16px}
+/* Main */
+#main{flex:1;padding:24px;overflow-y:auto}
+#main h3{font-size:18px;margin-bottom:16px}
+.tab{display:none}.tab.active{display:block}
+/* Group selector */
+.group-selector{margin-bottom:20px}
+.group-selector select{padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:14px;min-width:300px}
+.group-selector select:focus{outline:none;border-color:#58a6ff}
+/* Form */
+.form-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.form-row input,.form-row select{padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:14px}
+.form-row input:focus,.form-row select:focus{outline:none;border-color:#58a6ff}
+.form-row input{flex:1;min-width:120px}
+.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s}
+.btn-primary{background:#238636;color:#fff}.btn-primary:hover{background:#2ea043}
+.btn-danger{background:#da3633;color:#fff}.btn-danger:hover{background:#f85149}
+.btn-secondary{background:#21262d;color:#c9d1d9;border:1px solid #30363d}.btn-secondary:hover{background:#30363d}
+/* Table */
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #21262d;font-size:14px}
+th{color:#8b949e;font-weight:600;font-size:12px;text-transform:uppercase}
+tr:hover{background:#161b22}
+td .btn{padding:4px 10px;font-size:12px}
+.empty{color:#8b949e;font-style:italic;padding:20px;text-align:center}
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;max-width:400px}
+#toast.show{opacity:1}
+#toast.success{background:#238636}
+#toast.error{background:#da3633}
+/* Status bar */
+#status{position:fixed;top:0;right:0;padding:6px 12px;font-size:11px;color:#8b949e;background:#161b22;border-radius:0 0 0 8px;border:1px solid #30363d;border-top:0;border-right:0;z-index:100}
+/* Template key-value */
+.kv-pair{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.kv-pair input:first-child{max-width:120px}
+@media(max-width:768px){
+  #app{flex-direction:column}
+  #sidebar{width:100%;border-right:none;border-bottom:1px solid #30363d;padding:8px 0}
+  #sidebar .nav-item{display:inline-block;padding:8px 12px;font-size:13px}
+  #sidebar .sep{display:none}
+  #sidebar h2{display:none}
+  .form-row input{min-width:80px}
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>🔐 INFODriver Admin</h1>
+  <label>API Token</label>
+  <input id="tok" type="password" placeholder="токен из .env">
+  <button onclick="connect()">Подключиться</button>
+  <div class="hint">Откройте на устройстве, где запущен бот: <strong>http://localhost:8080/gui/</strong></div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="status">Не подключено</div>
+  <div id="sidebar">
+    <h2>INFODriver</h2>
+    <div class="nav-item active" data-tab="groups">📋 Группы</div>
+    <div class="sep"></div>
+    <div class="nav-item" data-tab="birthdays" id="tab-bd">🎂 Дни рождения</div>
+    <div class="nav-item" data-tab="weddings" id="tab-wed">💍 Свадьбы</div>
+    <div class="nav-item" data-tab="events" id="tab-evt">📅 События</div>
+    <div class="sep"></div>
+    <div class="nav-item" data-tab="templates">📝 Шаблоны событий</div>
+    <div class="nav-item" data-tab="congratulations">🎉 Поздравления</div>
+    <div class="nav-item" data-tab="wishes">💐 Свадебные пожелания</div>
+    <div class="sep"></div>
+    <div class="nav-item" onclick="disconnect()">🚪 Отключиться</div>
+  </div>
+  <div id="main">
+    <!-- Groups -->
+    <div class="tab active" id="tab-groups">
+      <h3>📋 Группы</h3>
+      <div id="groups-list"></div>
+    </div>
+    <!-- Birthdays -->
+    <div class="tab" id="tab-birthdays">
+      <h3>🎂 Дни рождения</h3>
+      <div class="group-selector"><select id="bd-group" onchange="loadBD()"></select></div>
+      <div class="form-row">
+        <input id="bd-name" placeholder="Имя">
+        <input id="bd-day" placeholder="ДД" style="max-width:60px">
+        <input id="bd-month" placeholder="ММ" style="max-width:60px">
+        <input id="bd-year" placeholder="ГГГГ (необяз.)" style="max-width:100px">
+        <button class="btn btn-primary" onclick="addBD()">➕ Добавить</button>
+      </div>
+      <div id="bd-list"></div>
+    </div>
+    <!-- Weddings -->
+    <div class="tab" id="tab-weddings">
+      <h3>💍 Свадьбы</h3>
+      <div class="group-selector"><select id="wed-group" onchange="loadWed()"></select></div>
+      <div class="form-row">
+        <input id="wed-name" placeholder="Имя">
+        <input id="wed-day" placeholder="ДД" style="max-width:60px">
+        <input id="wed-month" placeholder="ММ" style="max-width:60px">
+        <input id="wed-year" placeholder="ГГГГ (необяз.)" style="max-width:100px">
+        <button class="btn btn-primary" onclick="addWed()">➕ Добавить</button>
+      </div>
+      <div id="wed-list"></div>
+    </div>
+    <!-- Events -->
+    <div class="tab" id="tab-events">
+      <h3>📅 События</h3>
+      <div class="group-selector"><select id="evt-group" onchange="loadEvt()"></select></div>
+      <div class="form-row">
+        <input id="evt-name" placeholder="Название">
+        <select id="evt-type">
+          <option value="ежедневно">Ежедневно</option>
+          <option value="еженедельно">Еженедельно</option>
+          <option value="ежемесячно">Ежемесячно</option>
+          <option value="одноразово">Одноразово</option>
+        </select>
+        <input id="evt-time" placeholder="ЧЧ:ММ (или день ЧЧ:ММ)" style="flex:1.5">
+        <input id="evt-text" placeholder="Текст (необяз.)" style="flex:1.5">
+        <button class="btn btn-primary" onclick="addEvt()">➕ Добавить</button>
+      </div>
+      <div id="evt-list"></div>
+    </div>
+    <!-- Templates -->
+    <div class="tab" id="tab-templates">
+      <h3>📝 Шаблоны событий</h3>
+      <p style="color:#8b949e;margin-bottom:16px;font-size:13px">Шаблоны подставляют текст при добавлении события по ключевому слову. Пример: ключ <code>ew</code> → текст "Элитная война!⚔️"</p>
+      <div class="form-row">
+        <input id="tpl-key" placeholder="Ключ (ew, td, ke...)" style="max-width:120px">
+        <input id="tpl-text" placeholder="Текст шаблона" style="flex:3">
+        <button class="btn btn-primary" onclick="addTpl()">➕ Добавить</button>
+      </div>
+      <div id="tpl-list"></div>
+    </div>
+    <!-- Congratulations -->
+    <div class="tab" id="tab-congratulations">
+      <h3>🎉 Поздравления с днём рождения</h3>
+      <div class="form-row">
+        <input id="cong-text" placeholder="Текст поздравления" style="flex:3">
+        <button class="btn btn-primary" onclick="addCong()">➕ Добавить</button>
+      </div>
+      <div id="cong-list"></div>
+    </div>
+    <!-- Wedding Wishes -->
+    <div class="tab" id="tab-wishes">
+      <h3>💐 Свадебные пожелания</h3>
+      <div class="form-row">
+        <input id="wish-text" placeholder="Текст пожелания" style="flex:3">
+        <button class="btn btn-primary" onclick="addWish()">➕ Добавить</button>
+      </div>
+      <div id="wish-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let API = '', TOKEN = '';
+
+function toast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+
+async function api(method, path, body){
+  const res = await fetch(API + path, {
+    method, body: body ? JSON.stringify(body) : undefined,
+    headers: {'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'}
+  });
+  const data = await res.json();
+  if(!data.success) throw new Error(data.error || 'Unknown error');
+  return data.data;
+}
+
+function connect(){
+  API = window.location.origin;
+  TOKEN = document.getElementById('tok').value;
+  if(!API || !TOKEN){ toast('Заполните поля', 'error'); return }
+  fetch(API + '/health').then(r => {
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(d => {
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('status').textContent = '✅ ' + API;
+    localStorage.setItem('infodriver_token', TOKEN);
+    loadGroups();
+  }).catch(() => toast('Не удалось подключиться к ' + API, 'error'));
+}
+
+function disconnect(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('status').textContent = 'Не подключено';
+}
+
+// Restore saved token
+(function(){
+  if(localStorage.getItem('infodriver_token')) document.getElementById('tok').value = localStorage.getItem('infodriver_token');
+  // If opened from file:// - auto-detect server by hostname
+  if(window.location.protocol === 'file:') {
+    document.title = 'INFODriver Admin (поиск сервера...)';
+    tryHostname('walhalla');
+  }
+})();
+
+async function tryHostname(name) {
+  // Try mDNS (.local) first, then plain hostname
+  const urls = [`http://${name}.local:8080`, `http://${name}:8080`, 'http://raspberrypi.local:8080'];
+  for(const url of urls) {
+    try {
+      const r = await fetch(url + '/health');
+      if(r.ok) {
+        document.getElementById('srv').value = url;
+        document.title = 'INFODriver Admin';
+        return;
+      }
+    } catch(e) {}
+  }
+  document.title = 'INFODriver Admin';
+}
+
+// Nav tabs
+document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
+  el.addEventListener('click', function(){
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    this.classList.add('active');
+    const tab = document.getElementById('tab-' + this.dataset.tab);
+    if(tab) tab.classList.add('active');
+    // refresh
+    const fns = {birthdays: loadBD, weddings: loadWed, events: loadEvt, templates: loadTpl, congratulations: loadCong, wishes: loadWish, groups: loadGroups};
+    if(fns[this.dataset.tab]) fns[this.dataset.tab]();
+  });
+});
+
+// Groups
+async function loadGroups(){
+  const el = document.getElementById('groups-list');
+  try {
+    const groups = await api('GET', '/api/groups');
+    const bdSel = document.getElementById('bd-group');
+    const wedSel = document.getElementById('wed-group');
+    const evtSel = document.getElementById('evt-group');
+    bdSel.innerHTML = wedSel.innerHTML = evtSel.innerHTML = '<option value="">-- выберите группу --</option>';
+    if(!groups || groups.length === 0){ el.innerHTML = '<div class="empty">Нет групп</div>'; return }
+    el.innerHTML = '<table><tr><th>ID</th><th>Название</th><th>Уведомления</th><th>Время</th></tr>' +
+      groups.map(g => `<tr><td>${g.chat_id}</td><td>${g.chat_name || '-'}</td><td>${g.notifications_enabled ? '✅' : '❌'}</td><td>${g.notification_time || '10:00'}</td></tr>`).join('') + '</table>';
+    groups.forEach(g => {
+      bdSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
+      wedSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
+      evtSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
+    });
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+// Birthdays
+async function loadBD(){
+  const cid = document.getElementById('bd-group').value;
+  const el = document.getElementById('bd-list');
+  if(!cid){ el.innerHTML = ''; return }
+  try {
+    const data = await api('GET', '/api/groups/' + cid);
+    const list = data.birthdays || {};
+    const names = Object.keys(list);
+    if(names.length === 0){ el.innerHTML = '<div class="empty">Нет дней рождения</div>'; return }
+    el.innerHTML = '<table><tr><th>Имя</th><th>Дата</th><th></th></tr>' +
+      names.map(n => {
+        const b = list[n];
+        const d = b.year ? b.day + '.' + b.month + '.' + b.year : b.day + '.' + b.month;
+        return `<tr><td>${b.name}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delBD('${cid}','${b.name}')">🗑️</button></td></tr>`;
+      }).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addBD(){
+  const cid = document.getElementById('bd-group').value;
+  if(!cid){ toast('Выберите группу', 'error'); return }
+  const name = document.getElementById('bd-name').value.trim();
+  const day = parseInt(document.getElementById('bd-day').value);
+  const month = parseInt(document.getElementById('bd-month').value);
+  const year = parseInt(document.getElementById('bd-year').value) || 0;
+  if(!name || !day || !month){ toast('Заполните имя, день, месяц', 'error'); return }
+  try {
+    await api('POST', '/api/birthdays?chat_id=' + cid, {name, day, month, year});
+    toast('✅ Добавлено', 'success');
+    loadBD();
+    document.getElementById('bd-name').value = '';
+    document.getElementById('bd-day').value = '';
+    document.getElementById('bd-month').value = '';
+    document.getElementById('bd-year').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delBD(cid, name){
+  if(!confirm('Удалить ' + name + '?')) return;
+  try {
+    await api('DELETE', '/api/birthdays?chat_id=' + cid + '&name=' + encodeURIComponent(name));
+    toast('✅ Удалено', 'success');
+    loadBD();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Weddings
+async function loadWed(){
+  const cid = document.getElementById('wed-group').value;
+  const el = document.getElementById('wed-list');
+  if(!cid){ el.innerHTML = ''; return }
+  try {
+    const data = await api('GET', '/api/groups/' + cid);
+    const list = data.weddings || {};
+    const names = Object.keys(list);
+    if(names.length === 0){ el.innerHTML = '<div class="empty">Нет свадеб</div>'; return }
+    el.innerHTML = '<table><tr><th>Имя</th><th>Дата</th><th></th></tr>' +
+      names.map(n => {
+        const w = list[n];
+        const d = w.year ? w.day + '.' + w.month + '.' + w.year : w.day + '.' + w.month;
+        return `<tr><td>${w.name}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delWed('${cid}','${w.name}')">🗑️</button></td></tr>`;
+      }).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addWed(){
+  const cid = document.getElementById('wed-group').value;
+  if(!cid){ toast('Выберите группу', 'error'); return }
+  const name = document.getElementById('wed-name').value.trim();
+  const day = parseInt(document.getElementById('wed-day').value);
+  const month = parseInt(document.getElementById('wed-month').value);
+  const year = parseInt(document.getElementById('wed-year').value) || 0;
+  if(!name || !day || !month){ toast('Заполните имя, день, месяц', 'error'); return }
+  try {
+    await api('POST', '/api/weddings?chat_id=' + cid, {name, day, month, year});
+    toast('✅ Добавлено', 'success');
+    loadWed();
+    document.getElementById('wed-name').value = '';
+    document.getElementById('wed-day').value = '';
+    document.getElementById('wed-month').value = '';
+    document.getElementById('wed-year').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delWed(cid, name){
+  if(!confirm('Удалить ' + name + '?')) return;
+  try {
+    await api('DELETE', '/api/weddings?chat_id=' + cid + '&name=' + encodeURIComponent(name));
+    toast('✅ Удалено', 'success');
+    loadWed();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Events
+async function loadEvt(){
+  const cid = document.getElementById('evt-group').value;
+  const el = document.getElementById('evt-list');
+  if(!cid){ el.innerHTML = ''; return }
+  try {
+    const data = await api('GET', '/api/groups/' + cid);
+    const list = data.events || {};
+    const names = Object.keys(list);
+    if(names.length === 0){ el.innerHTML = '<div class="empty">Нет событий</div>'; return }
+    const typeNames = {ежедневно:'📅 Ежедневно', еженедельно:'📅 Еженедельно', ежемесячно:'📅 Ежемесячно', одноразово:'📅 Одноразово'};
+    el.innerHTML = '<table><tr><th>Название</th><th>Тип</th><th>Время</th><th></th></tr>' +
+      names.map(n => {
+        const e = list[n];
+        return `<tr><td>${e.name}</td><td>${typeNames[e.type] || e.type}</td><td>${e.time}</td><td><button class="btn btn-danger" onclick="delEvt('${cid}','${e.name}')">🗑️</button></td></tr>`;
+      }).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addEvt(){
+  const cid = document.getElementById('evt-group').value;
+  if(!cid){ toast('Выберите группу', 'error'); return }
+  const name = document.getElementById('evt-name').value.trim();
+  const type = document.getElementById('evt-type').value;
+  const time = document.getElementById('evt-time').value.trim();
+  const text = document.getElementById('evt-text').value.trim();
+  if(!name || !time){ toast('Заполните название и время', 'error'); return }
+  try {
+    await api('POST', '/api/events?chat_id=' + cid, {name, type, time, text});
+    toast('✅ Добавлено', 'success');
+    loadEvt();
+    document.getElementById('evt-name').value = '';
+    document.getElementById('evt-time').value = '';
+    document.getElementById('evt-text').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delEvt(cid, name){
+  if(!confirm('Удалить ' + name + '?')) return;
+  try {
+    await api('DELETE', '/api/events?chat_id=' + cid + '&name=' + encodeURIComponent(name));
+    toast('✅ Удалено', 'success');
+    loadEvt();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Templates
+async function loadTpl(){
+  const el = document.getElementById('tpl-list');
+  try {
+    const data = await api('GET', '/api/event-templates');
+    const keys = Object.keys(data);
+    if(keys.length === 0){ el.innerHTML = '<div class="empty">Нет шаблонов</div>'; return }
+    el.innerHTML = '<table><tr><th>Ключ</th><th>Текст</th><th></th></tr>' +
+      keys.map(k => `<tr><td><code>${k}</code></td><td>${data[k]}</td><td><button class="btn btn-danger" onclick="delTpl('${k}')">🗑️</button></td></tr>`).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addTpl(){
+  const key = document.getElementById('tpl-key').value.trim().toLowerCase();
+  const text = document.getElementById('tpl-text').value.trim();
+  if(!key || !text){ toast('Заполните ключ и текст', 'error'); return }
+  try {
+    await api('POST', '/api/event-templates', {key, text});
+    toast('✅ Сохранено', 'success');
+    loadTpl();
+    document.getElementById('tpl-key').value = '';
+    document.getElementById('tpl-text').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delTpl(key){
+  if(!confirm('Удалить шаблон "' + key + '"?')) return;
+  try {
+    await api('DELETE', '/api/event-templates?key=' + encodeURIComponent(key));
+    toast('✅ Удалено', 'success');
+    loadTpl();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Congratulations
+async function loadCong(){
+  const el = document.getElementById('cong-list');
+  try {
+    const data = await api('GET', '/api/congratulations');
+    if(!data || data.length === 0){ el.innerHTML = '<div class="empty">Нет поздравлений</div>'; return }
+    el.innerHTML = '<table><tr><th>Текст</th><th></th></tr>' +
+      data.map(t => `<tr><td>${t}</td><td><button class="btn btn-danger" onclick="delCong('${t.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addCong(){
+  const text = document.getElementById('cong-text').value.trim();
+  if(!text){ toast('Введите текст', 'error'); return }
+  try {
+    await api('POST', '/api/congratulations', {text});
+    toast('✅ Добавлено', 'success');
+    loadCong();
+    document.getElementById('cong-text').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delCong(text){
+  if(!confirm('Удалить это поздравление?')) return;
+  try {
+    await api('DELETE', '/api/congratulations?text=' + encodeURIComponent(text));
+    toast('✅ Удалено', 'success');
+    loadCong();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Wedding Wishes
+async function loadWish(){
+  const el = document.getElementById('wish-list');
+  try {
+    const data = await api('GET', '/api/wishes');
+    const list = data.weddings || [];
+    if(list.length === 0){ el.innerHTML = '<div class="empty">Нет пожеланий</div>'; return }
+    el.innerHTML = '<table><tr><th>Текст</th><th></th></tr>' +
+      list.map(t => `<tr><td>${t}</td><td><button class="btn btn-danger" onclick="delWish('${t.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`).join('') + '</table>';
+  } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+}
+
+async function addWish(){
+  const text = document.getElementById('wish-text').value.trim();
+  if(!text){ toast('Введите текст', 'error'); return }
+  try {
+    await api('POST', '/api/wishes?type=wedding', {text});
+    toast('✅ Добавлено', 'success');
+    loadWish();
+    document.getElementById('wish-text').value = '';
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+async function delWish(text){
+  if(!confirm('Удалить это пожелание?')) return;
+  try {
+    await api('DELETE', '/api/wishes?type=wedding&text=' + encodeURIComponent(text));
+    toast('✅ Удалено', 'success');
+    loadWish();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+</script>
+</body>
+</html>
