@@ -88,6 +88,9 @@ func runBot() {
 
 	apiServer := server.NewServer(db, apiPort, apiToken)
 	apiServer.SetOnTemplatesChanged(telegramBot.ReloadEvents)
+	apiServer.SetOnEventsChanged(func(chatID string) {
+		telegramBot.Scheduler().SetupEventJobs(chatID)
+	})
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("[SERVER] API server error: %v", err)

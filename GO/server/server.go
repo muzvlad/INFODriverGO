@@ -11,12 +11,13 @@ import (
 )
 
 type Server struct {
-	db            *storage.DB
-	port          string
-	token         string
-	mux           *http.ServeMux
-	server        *http.Server
+	db                 *storage.DB
+	port               string
+	token              string
+	mux                *http.ServeMux
+	server             *http.Server
 	onTemplatesChanged func()
+	onEventsChanged    func(chatID string)
 }
 
 type APIResponse struct {
@@ -36,6 +37,10 @@ func NewServer(db *storage.DB, port, token string) *Server {
 
 func (s *Server) SetOnTemplatesChanged(fn func()) {
 	s.onTemplatesChanged = fn
+}
+
+func (s *Server) SetOnEventsChanged(fn func(chatID string)) {
+	s.onEventsChanged = fn
 }
 
 func (s *Server) Start() error {
@@ -299,6 +304,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 			ok := s.db.AddEvent(chatID, data.Name, data.Type, data.Time, data.Text)
 			if ok {
+				if s.onEventsChanged != nil {
+					s.onEventsChanged(chatID)
+				}
 				s.sendSuccess(w, map[string]string{"status": "added"})
 			} else {
 				s.sendError(w, http.StatusConflict, "Event already exists")
@@ -312,6 +320,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 			ok := s.db.RemoveEvent(chatID, name)
 			if ok {
+				if s.onEventsChanged != nil {
+					s.onEventsChanged(chatID)
+				}
 				s.sendSuccess(w, map[string]string{"status": "deleted"})
 			} else {
 				s.sendError(w, http.StatusNotFound, "Event not found")
