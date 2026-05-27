@@ -329,6 +329,34 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			} else {
 				s.sendError(w, http.StatusConflict, "Event already exists")
 			}
+		case http.MethodPut:
+			var data struct {
+				OldName string `json:"old_name"`
+				Name    string `json:"name"`
+				Type    string `json:"type"`
+				Time    string `json:"time"`
+				Text    string `json:"text"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+				s.sendError(w, http.StatusBadRequest, "Invalid JSON")
+				return
+			}
+			if data.Name == "" || data.Type == "" || data.Time == "" {
+				s.sendError(w, http.StatusBadRequest, "name, type, time required")
+				return
+			}
+			if data.OldName == "" {
+				data.OldName = data.Name
+			}
+			ok := s.db.UpdateEvent(chatID, data.OldName, data.Name, data.Type, data.Time, data.Text)
+			if ok {
+				if s.onEventsChanged != nil {
+					go s.onEventsChanged(chatID)
+				}
+				s.sendSuccess(w, map[string]string{"status": "updated"})
+			} else {
+				s.sendError(w, http.StatusConflict, "Event already exists or not found")
+			}
 		case http.MethodDelete:
 			name := r.URL.Query().Get("name")
 			if name == "" {
@@ -383,6 +411,29 @@ func (s *Server) handleEventTemplates(w http.ResponseWriter, r *http.Request) {
 			}
 
 			s.sendSuccess(w, map[string]string{"status": "saved"})
+		case http.MethodPut:
+			var data struct {
+				OldKey string `json:"old_key"`
+				Key    string `json:"key"`
+				Text   string `json:"text"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+				s.sendError(w, http.StatusBadRequest, "Invalid JSON")
+				return
+			}
+			if data.Key == "" || data.Text == "" {
+				s.sendError(w, http.StatusBadRequest, "key and text required")
+				return
+			}
+			err := s.db.UpdateEventTemplate(data.OldKey, strings.ToLower(data.Key), data.Text)
+			if err != nil {
+				s.sendError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if s.onTemplatesChanged != nil {
+				go s.onTemplatesChanged()
+			}
+			s.sendSuccess(w, map[string]string{"status": "updated"})
 		case http.MethodDelete:
 			key := r.URL.Query().Get("key")
 			if key == "" {

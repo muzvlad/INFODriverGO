@@ -137,6 +137,9 @@ td .btn{padding:4px 10px;font-size:12px}
       <h3>📅 События</h3>
       <div class="group-selector"><select id="evt-group" onchange="loadEvt()"></select></div>
       <div class="form-row" id="evt-form">
+        <select id="evt-template" onchange="onEvtTemplateSelect()" style="max-width:130px">
+          <option value="">Шаблон...</option>
+        </select>
         <input id="evt-name" placeholder="Название" style="flex:0.8">
         <select id="evt-type" onchange="updateEvtFields()">
           <option value="ежедневно">Ежедневно</option>
@@ -154,7 +157,8 @@ td .btn{padding:4px 10px;font-size:12px}
           <input type="time" id="evt-time-once" class="evt-field" data-for="одноразово">
         </div>
         <input id="evt-text" placeholder="Текст (необяз.)" style="flex:1.5">
-        <button class="btn btn-primary" onclick="addEvt()">➕ Добавить</button>
+        <button class="btn btn-primary" id="evt-save-btn" onclick="addEvt()">➕ Добавить</button>
+        <button class="btn btn-secondary hidden" id="evt-cancel-btn" onclick="cancelEvtEdit()">❌</button>
       </div>
       <div id="evt-list"></div>
     </div>
@@ -165,7 +169,8 @@ td .btn{padding:4px 10px;font-size:12px}
       <div class="form-row">
         <input id="tpl-key" placeholder="Ключ (ew, td, ke...)" style="max-width:120px">
         <input id="tpl-text" placeholder="Текст шаблона" style="flex:3">
-        <button class="btn btn-primary" onclick="addTpl()">➕ Добавить</button>
+        <button class="btn btn-primary" id="tpl-save-btn" onclick="addTpl()">➕ Добавить</button>
+        <button class="btn btn-secondary hidden" id="tpl-cancel-btn" onclick="cancelTplEdit()">❌</button>
       </div>
       <div id="tpl-list"></div>
     </div>
@@ -433,6 +438,7 @@ function getEvtTime(){
 // Events
 async function loadEvt(){
   updateEvtFields();
+  loadEvtTemplates();
   const cid = document.getElementById('evt-group').value;
   const el = document.getElementById('evt-list');
   if(!cid){ el.innerHTML = ''; return }
@@ -442,15 +448,92 @@ async function loadEvt(){
     const names = Object.keys(list);
     if(names.length === 0){ el.innerHTML = '<div class="empty">Нет событий</div>'; return }
     const typeNames = {ежедневно:'📅 Ежедневно', еженедельно:'📅 Еженедельно', ежемесячно:'📅 Ежемесячно', одноразово:'📅 Одноразово'};
-    el.innerHTML = '<table><tr><th>Название</th><th>Тип</th><th>Время</th><th></th></tr>' +
+    el.innerHTML = '<table><tr><th>Название</th><th>Тип</th><th>Время</th><th>Текст</th><th></th></tr>' +
       names.map(n => {
         const e = list[n];
-        return `<tr><td>${e.name}</td><td>${typeNames[e.type] || e.type}</td><td>${e.time}</td><td><button class="btn btn-danger" onclick="delEvt('${cid}','${e.name}')">🗑️</button></td></tr>`;
+        return `<tr><td>${e.name}</td><td>${typeNames[e.type] || e.type}</td><td>${e.time}</td><td>${e.text || '-'}</td>
+          <td><button class="btn btn-secondary" onclick="editEvt('${cid}','${e.name.replace(/'/g,"\\'")}','${e.type}','${e.time.replace(/'/g,"\\'")}','${(e.text||'').replace(/'/g,"\\'")}')">✏️</button>
+          <button class="btn btn-danger" onclick="delEvt('${cid}','${e.name.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`;
       }).join('') + '</table>';
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }
 
+async function delEvt(cid, name){
+  if(!confirm('Удалить ' + name + '?')) return;
+  try {
+    await api('DELETE', '/api/events?chat_id=' + cid + '&name=' + encodeURIComponent(name));
+    toast('✅ Удалено', 'success');
+    loadEvt();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+var editingEvt = null;
+
+async function loadEvtTemplates(){
+  const sel = document.getElementById('evt-template');
+  try {
+    const data = await api('GET', '/api/event-templates');
+    sel.innerHTML = '<option value="">Шаблон...</option>';
+    Object.keys(data).forEach(function(k){
+      var opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = k + ' — ' + data[k];
+      opt.setAttribute('data-text', data[k]);
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* ignore */ }
+}
+
+function onEvtTemplateSelect(){
+  var sel = document.getElementById('evt-template');
+  var opt = sel.options[sel.selectedIndex];
+  if(opt && opt.value){
+    document.getElementById('evt-name').value = opt.value;
+    document.getElementById('evt-text').value = opt.getAttribute('data-text') || '';
+  }
+}
+
+function editEvt(cid, oldName, type, time, text){
+  editingEvt = {cid: cid, oldName: oldName};
+  document.getElementById('evt-name').value = oldName;
+  document.getElementById('evt-text').value = text || '';
+  document.getElementById('evt-template').value = '';
+  document.getElementById('evt-save-btn').textContent = '💾 Сохранить';
+  document.getElementById('evt-save-btn').onclick = saveEvt;
+  document.getElementById('evt-cancel-btn').classList.remove('hidden');
+  document.getElementById('evt-type').value = type;
+  updateEvtFields();
+  toast('Редактирование: ' + oldName, 'success');
+}
+
+function cancelEvtEdit(){
+  editingEvt = null;
+  document.getElementById('evt-name').value = '';
+  document.getElementById('evt-text').value = '';
+  document.getElementById('evt-save-btn').textContent = '➕ Добавить';
+  document.getElementById('evt-save-btn').onclick = addEvt;
+  document.getElementById('evt-cancel-btn').classList.add('hidden');
+  updateEvtFields();
+}
+
+async function saveEvt(){
+  var cid = editingEvt.cid;
+  var oldName = editingEvt.oldName;
+  var name = document.getElementById('evt-name').value.trim();
+  var type = document.getElementById('evt-type').value;
+  var time = getEvtTime();
+  var text = document.getElementById('evt-text').value.trim();
+  if(!name || !time){ toast('Заполните название и время', 'error'); return }
+  try {
+    await api('PUT', '/api/events?chat_id=' + cid, {old_name: oldName, name: name, type: type, time: time, text: text});
+    toast('✅ Сохранено', 'success');
+    cancelEvtEdit();
+    loadEvt();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
 async function addEvt(){
+  if(editingEvt) return saveEvt();
   const cid = document.getElementById('evt-group').value;
   if(!cid){ toast('Выберите группу', 'error'); return }
   const name = document.getElementById('evt-name').value.trim();
@@ -468,15 +551,6 @@ async function addEvt(){
   } catch(e){ toast('❌ ' + e.message, 'error') }
 }
 
-async function delEvt(cid, name){
-  if(!confirm('Удалить ' + name + '?')) return;
-  try {
-    await api('DELETE', '/api/events?chat_id=' + cid + '&name=' + encodeURIComponent(name));
-    toast('✅ Удалено', 'success');
-    loadEvt();
-  } catch(e){ toast('❌ ' + e.message, 'error') }
-}
-
 // Templates
 async function loadTpl(){
   const el = document.getElementById('tpl-list');
@@ -485,11 +559,47 @@ async function loadTpl(){
     const keys = Object.keys(data);
     if(keys.length === 0){ el.innerHTML = '<div class="empty">Нет шаблонов</div>'; return }
     el.innerHTML = '<table><tr><th>Ключ</th><th>Текст</th><th></th></tr>' +
-      keys.map(k => `<tr><td><code>${k}</code></td><td>${data[k]}</td><td><button class="btn btn-danger" onclick="delTpl('${k}')">🗑️</button></td></tr>`).join('') + '</table>';
+      keys.map(k => `<tr><td><code>${k}</code></td><td>${data[k]}</td>
+        <td><button class="btn btn-secondary" onclick="editTpl('${k.replace(/'/g,"\\'")}','${data[k].replace(/'/g,"\\'")}')">✏️</button>
+        <button class="btn btn-danger" onclick="delTpl('${k.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`).join('') + '</table>';
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }
 
+var editingTpl = null;
+
+function editTpl(key, text){
+  editingTpl = key;
+  document.getElementById('tpl-key').value = key;
+  document.getElementById('tpl-text').value = text;
+  document.getElementById('tpl-save-btn').textContent = '💾 Сохранить';
+  document.getElementById('tpl-save-btn').onclick = saveTpl;
+  document.getElementById('tpl-cancel-btn').classList.remove('hidden');
+}
+
+function cancelTplEdit(){
+  editingTpl = null;
+  document.getElementById('tpl-key').value = '';
+  document.getElementById('tpl-text').value = '';
+  document.getElementById('tpl-save-btn').textContent = '➕ Добавить';
+  document.getElementById('tpl-save-btn').onclick = addTpl;
+  document.getElementById('tpl-cancel-btn').classList.add('hidden');
+}
+
+async function saveTpl(){
+  var oldKey = editingTpl;
+  var key = document.getElementById('tpl-key').value.trim().toLowerCase();
+  var text = document.getElementById('tpl-text').value.trim();
+  if(!key || !text){ toast('Заполните ключ и текст', 'error'); return }
+  try {
+    await api('PUT', '/api/event-templates', {old_key: oldKey, key: key, text: text});
+    toast('✅ Сохранено', 'success');
+    cancelTplEdit();
+    loadTpl();
+  } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
 async function addTpl(){
+  if(editingTpl) return saveTpl();
   const key = document.getElementById('tpl-key').value.trim().toLowerCase();
   const text = document.getElementById('tpl-text').value.trim();
   if(!key || !text){ toast('Заполните ключ и текст', 'error'); return }

@@ -460,6 +460,29 @@ func (d *DB) GetWeddingsForGroup(chatID string) map[string]Wedding {
 	return result
 }
 
+func (d *DB) UpdateEvent(chatID, oldName, newName, eventType, timeStr, text string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if !strings.EqualFold(oldName, newName) {
+		_, err := d.db.Exec(`DELETE FROM events WHERE chat_id = ? AND LOWER(name) = LOWER(?)`, chatID, oldName)
+		if err != nil {
+			logger.Errorf("[DB] UpdateEvent delete error: %v", err)
+			return false
+		}
+	}
+	_, err := d.db.Exec(`INSERT INTO events (chat_id, name, type, time, text) VALUES (?, ?, ?, ?, ?)`,
+		chatID, newName, eventType, timeStr, text)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return false
+		}
+		logger.Errorf("[DB] UpdateEvent error: %v", err)
+		return false
+	}
+	return true
+}
+
 func (d *DB) AddEvent(chatID, name, eventType, timeStr, text string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -664,6 +687,20 @@ func (d *DB) GetAllEventTemplates() map[string]string {
 		result[key] = text
 	}
 	return result
+}
+
+func (d *DB) UpdateEventTemplate(oldKey, newKey, text string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if oldKey != "" && !strings.EqualFold(oldKey, newKey) {
+		_, err := d.db.Exec(`DELETE FROM event_templates WHERE key = ?`, oldKey)
+		if err != nil {
+			return err
+		}
+	}
+	_, err := d.db.Exec(`INSERT OR REPLACE INTO event_templates (key, text) VALUES (?, ?)`, newKey, text)
+	return err
 }
 
 func (d *DB) AddEventTemplate(key, text string) error {

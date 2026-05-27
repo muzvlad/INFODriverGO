@@ -18,6 +18,11 @@
 - Fix: удалены захардкоженные массивы поздравлений из randomCongratulation/randomWeddingCongratulation — все поздравления только из БД
 - Deploy: добавлен deploy.sh — git pull + установка infodriver_arm64 + restart
 - Start: start_bot.sh теперь предпочитает pre-compiled ARM64 бинарник сборке из исходников
+- API: PUT /api/event-templates (редактирование шаблона с old_key)
+- API: PUT /api/events (редактирование события)
+- GUI: выбор шаблона при добавлении события (dropdown)
+- GUI: колонка Текст в списке событий, кнопка редактирования ✏️
+- GUI: кнопка редактирования шаблона ✏️
 
 ## v1.11
 - `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today
