@@ -195,8 +195,22 @@ td .btn{padding:4px 10px;font-size:12px}
     <!-- Tests -->
     <div class="tab" id="tab-tests">
       <h3>🧪 Тесты</h3>
-      <p style="color:#8b949e;margin-bottom:16px;font-size:13px">Запуск тестов на сервере (go test -v). Результат появится ниже.</p>
-      <button class="btn btn-primary" onclick="runTests()" id="run-tests-btn">▶️ Запустить тесты</button>
+      <div style="margin-bottom:16px">
+        <label style="margin-right:16px;cursor:pointer">
+          <input type="radio" name="test-location" value="server" checked onchange="toggleTestMode()"> На сервере (малинка)
+        </label>
+        <label style="cursor:pointer">
+          <input type="radio" name="test-location" value="local" onchange="toggleTestMode()"> На компьютере (локально)
+        </label>
+      </div>
+      <div id="test-server-mode">
+        <button class="btn btn-primary" onclick="runTests()" id="run-tests-btn">▶️ Запустить тесты</button>
+      </div>
+      <div id="test-local-mode" class="hidden">
+        <p style="color:#8b949e;margin-bottom:8px;font-size:13px">Запусти эти команды в терминале в папке <code>GO/</code>:</p>
+        <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:monospace;font-size:13px;white-space:pre;margin-bottom:8px" id="test-local-cmd">cd GO && go test -v -count=1 ./bot/... && go test -v -count=1 ./tests/...</div>
+        <button class="btn btn-secondary" onclick="copyTestCmd()">📋 Копировать команду</button>
+      </div>
       <div id="tests-output" style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-family:monospace;font-size:13px;white-space:pre-wrap;overflow-x:auto;max-height:600px;overflow-y:auto"></div>
     </div>
   </div>
@@ -686,6 +700,24 @@ async function delWish(text){
 }
 
 // Tests
+function toggleTestMode(){
+  var server = document.getElementById('test-server-mode');
+  var local = document.getElementById('test-local-mode');
+  var isServer = document.querySelector('input[name="test-location"]:checked').value === 'server';
+  server.classList.toggle('hidden', !isServer);
+  local.classList.toggle('hidden', isServer);
+  if(!isServer) document.getElementById('tests-output').textContent = '';
+}
+
+function copyTestCmd(){
+  var cmd = document.getElementById('test-local-cmd').textContent;
+  navigator.clipboard.writeText(cmd).then(function(){
+    toast('✅ Команда скопирована', 'success');
+  }).catch(function(){
+    toast('❌ Не удалось скопировать', 'error');
+  });
+}
+
 async function runTests(){
   const btn = document.getElementById('run-tests-btn');
   const out = document.getElementById('tests-output');
