@@ -58,16 +58,18 @@ func TestGroupSettings(t *testing.T) {
 		t.Fatalf("SetNotificationsEnabled failed: %v", err)
 	}
 
-	if !db.IsNotificationsEnabled(chatID) {
-		t.Error("IsNotificationsEnabled = false, want true")
+	settings = db.GetGroupSettings(chatID)
+	if !settings.NotificationsEnabled {
+		t.Error("NotificationsEnabled = false, want true")
 	}
 
 	err = db.SetNotificationTime(chatID, "13:30")
 	if err != nil {
 		t.Fatalf("SetNotificationTime failed: %v", err)
 	}
-	if db.GetNotificationTime(chatID) != "13:30" {
-		t.Errorf("GetNotificationTime = %q, want %q", db.GetNotificationTime(chatID), "13:30")
+	settings = db.GetGroupSettings(chatID)
+	if settings.NotificationTime != "13:30" {
+		t.Errorf("NotificationTime = %q, want %q", settings.NotificationTime, "13:30")
 	}
 }
 

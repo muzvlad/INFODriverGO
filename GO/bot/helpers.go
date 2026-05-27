@@ -67,17 +67,7 @@ func (b *Bot) handleList(chatID string) string {
 		return "❌ Нет дней рождения в этой группе."
 	}
 
-	birthdayList := make([]storage.Birthday, 0, len(birthdays))
-	for _, bd := range birthdays {
-		birthdayList = append(birthdayList, bd)
-	}
-
-	sort.Slice(birthdayList, func(i, j int) bool {
-		if birthdayList[i].Month != birthdayList[j].Month {
-			return birthdayList[i].Month < birthdayList[j].Month
-		}
-		return birthdayList[i].Day < birthdayList[j].Day
-	})
+	birthdayList := sortBirthdaysByDate(birthdays)
 
 	result := "🎂 *Дни рождения:*\n\n"
 	for i, bd := range birthdayList {
@@ -114,21 +104,8 @@ func (b *Bot) handleToday(chatID string) string {
 	birthdays := b.db.GetBirthdaysForGroup(chatID)
 	weddings := b.db.GetWeddingsForGroup(chatID)
 
-	today := time.Now()
-	var birthdayList []string
-	var weddingList []string
-
-	for _, b := range birthdays {
-		if b.Day == today.Day() && b.Month == int(today.Month()) {
-			birthdayList = append(birthdayList, b.Name)
-		}
-	}
-
-	for _, w := range weddings {
-		if w.Day == today.Day() && w.Month == int(today.Month()) {
-			weddingList = append(weddingList, w.Name)
-		}
-	}
+	birthdayList := getTodaysBirthdays(birthdays)
+	weddingList := getTodaysWeddings(weddings)
 
 	if len(birthdayList) == 0 && len(weddingList) == 0 {
 		return "🎉 Сегодня нет дней рождения и свадеб!"
@@ -234,17 +211,7 @@ func (b *Bot) handleWeddingsList(chatID string) string {
 		return "❌ Нет годовщин свадеб в этой группе."
 	}
 
-	weddingList := make([]storage.Wedding, 0, len(weddings))
-	for _, w := range weddings {
-		weddingList = append(weddingList, w)
-	}
-
-	sort.Slice(weddingList, func(i, j int) bool {
-		if weddingList[i].Month != weddingList[j].Month {
-			return weddingList[i].Month < weddingList[j].Month
-		}
-		return weddingList[i].Day < weddingList[j].Day
-	})
+	weddingList := sortWeddingsByDate(weddings)
 
 	result := "💍 *Годовщины свадеб:*\n\n"
 	for i, w := range weddingList {
@@ -279,14 +246,8 @@ func (b *Bot) handleNoWedding(chatID, args string) string {
 
 func (b *Bot) handleWeddingToday(chatID string) string {
 	weddings := b.db.GetWeddingsForGroup(chatID)
-	today := time.Now()
 
-	var weddingList []string
-	for _, w := range weddings {
-		if w.Day == today.Day() && w.Month == int(today.Month()) {
-			weddingList = append(weddingList, w.Name)
-		}
-	}
+	weddingList := getTodaysWeddings(weddings)
 
 	if len(weddingList) == 0 {
 		return "💍 Сегодня нет годовщин свадеб!"
@@ -305,7 +266,7 @@ func (b *Bot) handleWeddingToday(chatID string) string {
 func (b *Bot) handleEvent(chatID, args string) string {
 	if args == "" {
 		return `📅 *Использование: /событие тип время название*
-
+	
 *Типы:*
 • ежедневно ЧЧ:ММ название
 • еженедельно день ЧЧ:ММ название
@@ -323,20 +284,29 @@ func (b *Bot) handleEvent(chatID, args string) string {
 	eventType := strings.ToLower(parts[0])
 	rest := strings.TrimSpace(parts[1])
 
-	restParts := strings.Fields(rest)
-	if len(restParts) < 2 {
-		return "Неверный формат! Используйте: /событие тип время название"
-	}
-
-	eventName := restParts[len(restParts)-1]
-	timeStr := strings.Join(restParts[:len(restParts)-1], " ")
-
 	validTypes := map[string]bool{
 		"ежедневно": true, "еженедельно": true, "двухнедельно": true, "ежемесячно": true, "одноразово": true,
 	}
 
 	if !validTypes[eventType] {
 		return "Неверный тип! Доступные: ежедневно, еженедельно, двухнедельно, ежемесячно, одноразово"
+	}
+
+	restParts := strings.Fields(rest)
+
+	timeWords := 2
+	if eventType == "ежедневно" {
+		timeWords = 1
+	}
+
+	if len(restParts) < timeWords {
+		return "Неверный формат! Используйте: /событие тип время название"
+	}
+
+	timeStr := strings.Join(restParts[:timeWords], " ")
+	eventName := strings.Join(restParts[timeWords:], " ")
+	if eventName == "" {
+		return "Неверный формат! Используйте: /событие тип время название"
 	}
 
 	if err := b.validateEventTime(eventType, timeStr); err != nil {

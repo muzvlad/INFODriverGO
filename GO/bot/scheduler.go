@@ -78,15 +78,14 @@ func (s *Scheduler) run() {
 	logger.Infof("[SCHEDULER] Initial catch-up done")
 
 	for {
-		s.checkJobs()
-		time.Sleep(30 * time.Second)
-
 		select {
 		case <-s.stopChan:
 			logger.Infof("[SCHEDULER] Stopped")
 			return
 		default:
 		}
+		s.checkJobs()
+		time.Sleep(30 * time.Second)
 	}
 }
 
@@ -162,21 +161,8 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 	birthdays := s.db.GetBirthdaysForGroup(chatID)
 	weddings := s.db.GetWeddingsForGroup(chatID)
 
-	today := time.Now()
-	var birthdayNames []string
-	var weddingNames []string
-
-	for _, b := range birthdays {
-		if b.Day == today.Day() && b.Month == int(today.Month()) {
-			birthdayNames = append(birthdayNames, b.Name)
-		}
-	}
-
-	for _, w := range weddings {
-		if w.Day == today.Day() && w.Month == int(today.Month()) {
-			weddingNames = append(weddingNames, w.Name)
-		}
-	}
+	birthdayNames := getTodaysBirthdays(birthdays)
+	weddingNames := getTodaysWeddings(weddings)
 
 	if len(birthdayNames) > 0 {
 		message := fmt.Sprintf("🎉 Сегодня дни рождения у: %s! 🎂\n\n", strings.Join(birthdayNames, ", "))
@@ -244,10 +230,9 @@ func (s *Scheduler) checkReminderJobs(chatID string, now time.Time) {
 		s.mu.Lock()
 		for _, t := range toTrigger {
 			if now.Sub(t.job.NextRun) > 10*time.Minute {
-				logger.Warnf("[SCHEDULER] Skipping late reminder for %s (%.0fs past)", t.key, now.Sub(t.job.NextRun).Seconds())
-			} else {
-				go s.triggerReminder(t.job)
+				logger.Warnf("[SCHEDULER] Late reminder for %s (%.0fs past), triggering anyway", t.key, now.Sub(t.job.NextRun).Seconds())
 			}
+			go s.triggerReminder(t.job)
 			s.rescheduleReminder(t.key, t.job)
 		}
 		s.mu.Unlock()

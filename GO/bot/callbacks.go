@@ -2,13 +2,11 @@ package bot
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"infodriver/storage"
 )
 
 func (b *Bot) handleCallback(update tgbotapi.Update) {
@@ -156,17 +154,7 @@ func (b *Bot) handleBirthdayPagination(chatID string, editChatID int64, messageI
 	result := fmt.Sprintf("🎂 *Дни рождения* (страница %d/%d)\n\n", page+1, totalPages)
 	index := start + 1
 
-	birthdayList := make([]storage.Birthday, 0, len(birthdays))
-	for _, bd := range birthdays {
-		birthdayList = append(birthdayList, bd)
-	}
-
-	sort.Slice(birthdayList, func(i, j int) bool {
-		if birthdayList[i].Month != birthdayList[j].Month {
-			return birthdayList[i].Month < birthdayList[j].Month
-		}
-		return birthdayList[i].Day < birthdayList[j].Day
-	})
+	birthdayList := sortBirthdaysByDate(birthdays)
 
 	for i := start; i < end; i++ {
 		bd := birthdayList[i]

@@ -180,3 +180,148 @@ func TestCalculateNextEventRun_MonthlyInvalidParts(t *testing.T) {
 		t.Errorf("expected zero time for invalid monthly parts, got %v", next)
 	}
 }
+
+func TestValidateEventTime(t *testing.T) {
+	b := &Bot{}
+
+	t.Run("daily valid", func(t *testing.T) {
+		if err := b.validateEventTime("ежедневно", "09:00"); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+	t.Run("daily invalid", func(t *testing.T) {
+		if err := b.validateEventTime("ежедневно", "invalid"); err == nil {
+			t.Error("expected error")
+		}
+	})
+	t.Run("weekly valid", func(t *testing.T) {
+		if err := b.validateEventTime("еженедельно", "суббота 20:00"); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+	t.Run("weekly invalid", func(t *testing.T) {
+		if err := b.validateEventTime("еженедельно", "invalid"); err == nil {
+			t.Error("expected error")
+		}
+	})
+	t.Run("biweekly valid", func(t *testing.T) {
+		if err := b.validateEventTime("двухнедельно", "понедельник 10:00"); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+	t.Run("monthly valid", func(t *testing.T) {
+		if err := b.validateEventTime("ежемесячно", "15 10:00"); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+	t.Run("monthly invalid", func(t *testing.T) {
+		if err := b.validateEventTime("ежемесячно", "invalid"); err == nil {
+			t.Error("expected error")
+		}
+	})
+	t.Run("oneshot valid", func(t *testing.T) {
+		if err := b.validateEventTime("одноразово", "25.12.2026 12:00"); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+	t.Run("oneshot invalid", func(t *testing.T) {
+		if err := b.validateEventTime("одноразово", "25.12 12:00"); err == nil {
+			t.Error("expected error for short date")
+		}
+	})
+	t.Run("oneshot no parts", func(t *testing.T) {
+		if err := b.validateEventTime("одноразово", "invalid"); err == nil {
+			t.Error("expected error")
+		}
+	})
+}
+
+func TestRescheduleEvent_Daily(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "ежедневно",
+		NextRun: now,
+	}
+	s.rescheduleEvent("event_test", job)
+	expected := now.AddDate(0, 0, 1)
+	if !job.NextRun.Equal(expected) {
+		t.Errorf("daily: expected %v, got %v", expected, job.NextRun)
+	}
+}
+
+func TestRescheduleEvent_Weekly(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "еженедельно",
+		NextRun: now,
+	}
+	s.rescheduleEvent("event_test", job)
+	expected := now.AddDate(0, 0, 7)
+	if !job.NextRun.Equal(expected) {
+		t.Errorf("weekly: expected %v, got %v", expected, job.NextRun)
+	}
+}
+
+func TestRescheduleEvent_Biweekly(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "двухнедельно",
+		NextRun: now,
+	}
+	s.rescheduleEvent("event_test", job)
+	expected := now.AddDate(0, 0, 14)
+	if !job.NextRun.Equal(expected) {
+		t.Errorf("biweekly: expected %v, got %v", expected, job.NextRun)
+	}
+}
+
+func TestRescheduleEvent_Monthly(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "ежемесячно",
+		NextRun: now,
+	}
+	s.rescheduleEvent("event_test", job)
+	expected := now.AddDate(0, 1, 0)
+	if !job.NextRun.Equal(expected) {
+		t.Errorf("monthly: expected %v, got %v", expected, job.NextRun)
+	}
+}
+
+func TestRescheduleEvent_Oneshot(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "одноразово",
+		NextRun: now,
+	}
+	s.eventJobs["event_test"] = job
+	s.rescheduleEvent("event_test", job)
+	if _, exists := s.eventJobs["event_test"]; exists {
+		t.Error("oneshot job should be deleted after trigger")
+	}
+}
+
+func TestRescheduleEvent_CatchUp(t *testing.T) {
+	s := NewScheduler(nil)
+	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
+	past := now.AddDate(0, 0, -2)
+	job := &EventJob{
+		Name:    "test",
+		Type:    "ежедневно",
+		NextRun: past,
+	}
+	s.rescheduleEvent("event_test", job)
+	if job.NextRun.Before(now) {
+		t.Errorf("rescheduled %v should not be before now %v", job.NextRun, now)
+	}
+}

@@ -6,11 +6,13 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"infodriver/storage"
 )
 
 func parseDate(dateStr string) (int, int, int) {
@@ -155,4 +157,54 @@ func loadEventsMap(wishesFolder, filename string) map[string]string {
 		result[k] = v.Text
 	}
 	return result
+}
+
+func getTodaysBirthdays(birthdays map[string]storage.Birthday) []string {
+	today := time.Now()
+	var names []string
+	for _, b := range birthdays {
+		if b.Day == today.Day() && b.Month == int(today.Month()) {
+			names = append(names, b.Name)
+		}
+	}
+	return names
+}
+
+func getTodaysWeddings(weddings map[string]storage.Wedding) []string {
+	today := time.Now()
+	var names []string
+	for _, w := range weddings {
+		if w.Day == today.Day() && w.Month == int(today.Month()) {
+			names = append(names, w.Name)
+		}
+	}
+	return names
+}
+
+func sortBirthdaysByDate(birthdays map[string]storage.Birthday) []storage.Birthday {
+	list := make([]storage.Birthday, 0, len(birthdays))
+	for _, bd := range birthdays {
+		list = append(list, bd)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Month != list[j].Month {
+			return list[i].Month < list[j].Month
+		}
+		return list[i].Day < list[j].Day
+	})
+	return list
+}
+
+func sortWeddingsByDate(weddings map[string]storage.Wedding) []storage.Wedding {
+	list := make([]storage.Wedding, 0, len(weddings))
+	for _, w := range weddings {
+		list = append(list, w)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Month != list[j].Month {
+			return list[i].Month < list[j].Month
+		}
+		return list[i].Day < list[j].Day
+	})
+	return list
 }

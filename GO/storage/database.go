@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -86,10 +85,6 @@ func NewDB(basePath string) (*DB, error) {
 		return nil, err
 	}
 
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		database.seedDefaultData()
-	}
-
 	return database, nil
 }
 
@@ -162,16 +157,6 @@ func (d *DB) init() error {
 
 	_, err := d.db.Exec(schema)
 	return err
-}
-
-func (d *DB) seedDefaultData() {
-	defaultGroups := []string{"249204598", "-5022355991", "-1003256918151", "-1002639028563", "-1001234567890"}
-	for _, chatID := range defaultGroups {
-		if _, err := d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notification_time, last_updated) VALUES (?, ?, '10:00', ?)`,
-			chatID, "Группа "+chatID, time.Now().Format(time.RFC3339)); err != nil {
-			logger.Errorf("[DB] seedDefaultData error: %v", err)
-		}
-	}
 }
 
 func (d *DB) Close() error {
@@ -313,7 +298,7 @@ func (d *DB) GetGroupsWithNotifications() []string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT chat_id, notifications_enabled FROM groups`)
+	rows, err := d.db.Query(`SELECT chat_id FROM groups WHERE notifications_enabled = 1`)
 	if err != nil {
 		logger.Errorf("[DB] GetGroupsWithNotifications error: %v", err)
 		return nil
@@ -323,14 +308,11 @@ func (d *DB) GetGroupsWithNotifications() []string {
 	var result []string
 	for rows.Next() {
 		var chatID string
-		var enabled int
-		if err := rows.Scan(&chatID, &enabled); err != nil {
+		if err := rows.Scan(&chatID); err != nil {
 			logger.Errorf("[DB] GetGroupsWithNotifications scan error: %v", err)
 			continue
 		}
-		if enabled == 1 {
-			result = append(result, chatID)
-		}
+		result = append(result, chatID)
 	}
 
 	return result
@@ -530,16 +512,6 @@ func (d *DB) GetEventsForGroup(chatID string) map[string]Event {
 	}
 
 	return result
-}
-
-func (d *DB) IsNotificationsEnabled(chatID string) bool {
-	settings := d.GetGroupSettings(chatID)
-	return settings.NotificationsEnabled
-}
-
-func (d *DB) GetNotificationTime(chatID string) string {
-	settings := d.GetGroupSettings(chatID)
-	return settings.NotificationTime
 }
 
 func (d *DB) GetAllCongratulations() []string {
