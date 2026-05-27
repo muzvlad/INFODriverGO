@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -559,25 +558,13 @@ func randomCongratulation() string {
 	if getCongratulation != nil {
 		return getCongratulation()
 	}
-	congratulations := []string{
-		"🎊 С днем рождения! Желаем счастья, здоровья и радости!",
-		"🎉 С днем рождения! Пусть все мечты сбываются!",
-		"🎂 С днем рождения! Самые лучшие пожелания!",
-		"🎊 Поздравляем! Желаем удачи и успехов!",
-		"🎉 С днем рождения! Радости и любви!",
-	}
-	return congratulations[rand.Intn(len(congratulations))]
+	return "🎉 С днем рождения!"
 }
 
 func randomWeddingCongratulation() string {
 	if getWeddingWish != nil {
 		return getWeddingWish()
 	}
-	congratulations := []string{
-		"💝 С годовщиной свадьбы! Любви и счастья!",
-		"💍 Поздравляем! Желаем долгих лет вместе!",
-		"💕 С годовщиной! Пусть любовь никогда не угасает!",
-	}
-	return congratulations[rand.Intn(len(congratulations))]
+	return "💍 С годовщиной свадьбы!"
 }
 

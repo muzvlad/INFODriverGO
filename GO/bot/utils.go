@@ -62,7 +62,7 @@ func (b *Bot) GetRandomCongratulation() string {
 	defer b.mu.RUnlock()
 
 	if len(b.congratulations) == 0 {
-		return "🎉 С днем рождения! Желаем счастья и радости!"
+		return "🎉 С днем рождения!"
 	}
 	return b.congratulations[rand.Intn(len(b.congratulations))]
 }
@@ -72,7 +72,7 @@ func (b *Bot) GetRandomWeddingWish() string {
 	defer b.mu.RUnlock()
 
 	if len(b.weddings) == 0 {
-		return "💍 С годовщиной свадьбы! Любви и счастья!"
+		return "💍 С годовщиной свадьбы!"
 	}
 	return b.weddings[rand.Intn(len(b.weddings))]
 }

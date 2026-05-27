@@ -15,6 +15,7 @@
 - Админка: добавлена вкладка «🧪 Тесты» с кнопкой запуска через /api/run-tests
 - Тесты: unit-тесты (bot/utils, bot/scheduler), интеграционные (storage, logger)
 - Скрипты: run_tests.bat (Windows), run_tests.sh (Linux)
+- Fix: удалены захардкоженные массивы поздравлений из randomCongratulation/randomWeddingCongratulation — все поздравления только из БД
 
 ## v1.11
 - `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today
