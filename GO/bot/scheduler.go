@@ -284,8 +284,7 @@ func (s *Scheduler) rescheduleEvent(key string, job *EventJob) {
 }
 
 func (s *Scheduler) triggerReminder(job *ReminderJob) {
-	months := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
-	dateStr := fmt.Sprintf("%d %s", job.Day, months[job.Month])
+	dateStr := fmt.Sprintf("%d %s", job.Day, monthNames[job.Month])
 
 	var message string
 	if job.Type == "birthday" {
@@ -497,17 +496,17 @@ func (s *Scheduler) SetupThreeDaysReminder(chatID, name string, day, month, year
 	}
 
 	job := &ReminderJob{
-		ChatID:  chatID,
-		Name:   name,
-		Day:    day,
-		Month:  month,
-		Year:   year,
-		Type:   reminderType,
-		NextRun: reminderDate,
+		ChatID:   chatID,
+		Name:     name,
+		Day:      day,
+		Month:    month,
+		Year:     year,
+		Type:     reminderType,
+		NextRun:  reminderDate,
 	}
 
 	s.mu.Lock()
-	key := fmt.Sprintf("reminder_%s_%s_%d_%d", reminderType, chatID, day, month)
+	key := fmt.Sprintf("reminder_%s_%s_%s_%d_%d", reminderType, chatID, strings.ToLower(name), day, month)
 	s.reminderJobs[key] = job
 	s.mu.Unlock()
 
@@ -528,6 +527,11 @@ func (s *Scheduler) RemoveReminderJob(chatID, name string, day, month int) {
 	key = fmt.Sprintf("reminder_wedding_%s_%s_%d_%d", chatID, strings.ToLower(name), day, month)
 	delete(s.reminderJobs, key)
 	s.mu.Unlock()
+}
+
+func (s *Scheduler) SetupAndCheckEvents(chatID string) {
+	s.SetupEventJobs(chatID)
+	s.checkEventJobs(chatID, time.Now())
 }
 
 var globalSendFunc func(chatID, message string)

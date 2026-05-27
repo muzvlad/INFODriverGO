@@ -220,6 +220,7 @@ td .btn{padding:4px 10px;font-size:12px}
 
 <script>
 let API = '', TOKEN = '';
+function esc(s){if(typeof s!=='string')return '';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
 
 function toast(msg, type){
   const t = document.getElementById('toast');
@@ -306,11 +307,11 @@ async function loadGroups(){
     bdSel.innerHTML = wedSel.innerHTML = evtSel.innerHTML = '<option value="">-- выберите группу --</option>';
     if(!groups || groups.length === 0){ el.innerHTML = '<div class="empty">Нет групп</div>'; return }
     el.innerHTML = '<table><tr><th>ID</th><th>Название</th><th>Уведомления</th><th>Время</th></tr>' +
-      groups.map(g => `<tr><td>${g.chat_id}</td><td>${g.chat_name || '-'}</td><td>${g.notifications_enabled ? '✅' : '❌'}</td><td>${g.notification_time || '10:00'}</td></tr>`).join('') + '</table>';
+      groups.map(g => `<tr><td>${esc(g.chat_id)}</td><td>${esc(g.chat_name||'-')}</td><td>${g.notifications_enabled?'✅':'❌'}</td><td>${esc(g.notification_time||'10:00')}</td></tr>`).join('') + '</table>';
     groups.forEach(g => {
-      bdSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
-      wedSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
-      evtSel.innerHTML += `<option value="${g.chat_id}">${g.chat_name || g.chat_id}</option>`;
+      bdSel.innerHTML += `<option value="${esc(g.chat_id)}">${esc(g.chat_name||g.chat_id)}</option>`;
+      wedSel.innerHTML += `<option value="${esc(g.chat_id)}">${esc(g.chat_name||g.chat_id)}</option>`;
+      evtSel.innerHTML += `<option value="${esc(g.chat_id)}">${esc(g.chat_name||g.chat_id)}</option>`;
     });
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }
@@ -329,7 +330,8 @@ async function loadBD(){
       names.map(n => {
         const b = list[n];
         const d = b.year ? b.day + '.' + b.month + '.' + b.year : b.day + '.' + b.month;
-        return `<tr><td>${b.name}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delBD('${cid}','${b.name}')">🗑️</button></td></tr>`;
+        const safeName = esc(b.name);
+        return `<tr><td>${safeName}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delBD('${esc(cid)}','${safeName.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`;
       }).join('') + '</table>';
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }
@@ -376,7 +378,8 @@ async function loadWed(){
       names.map(n => {
         const w = list[n];
         const d = w.year ? w.day + '.' + w.month + '.' + w.year : w.day + '.' + w.month;
-        return `<tr><td>${w.name}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delWed('${cid}','${w.name}')">🗑️</button></td></tr>`;
+        const safeName = esc(w.name);
+        return `<tr><td>${safeName}</td><td>${d}</td><td><button class="btn btn-danger" onclick="delWed('${esc(cid)}','${safeName.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`;
       }).join('') + '</table>';
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }
@@ -466,9 +469,9 @@ async function loadEvt(){
     el.innerHTML = '<table><tr><th>Название</th><th>Тип</th><th>Время</th><th>Текст</th><th></th></tr>' +
       names.map(n => {
         const e = list[n];
-        return `<tr><td>${e.name}</td><td>${typeNames[e.type] || e.type}</td><td>${e.time}</td><td>${e.text || '-'}</td>
-          <td><button class="btn btn-secondary" onclick="editEvt('${cid}','${e.name.replace(/'/g,"\\'")}','${e.type}','${e.time.replace(/'/g,"\\'")}','${(e.text||'').replace(/'/g,"\\'")}')">✏️</button>
-          <button class="btn btn-danger" onclick="delEvt('${cid}','${e.name.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`;
+        return `<tr><td>${esc(e.name)}</td><td>${typeNames[e.type] || esc(e.type)}</td><td>${esc(e.time)}</td><td>${esc(e.text||'-')}</td>
+          <td><button class="btn btn-secondary" onclick="editEvt('${esc(cid)}','${esc(e.name).replace(/'/g,"\\'")}','${esc(e.type).replace(/'/g,"\\'")}','${esc(e.time).replace(/'/g,"\\'")}','${esc(e.text||'').replace(/'/g,"\\'")}')">✏️</button>
+          <button class="btn btn-danger" onclick="delEvt('${esc(cid)}','${esc(e.name).replace(/'/g,"\\'")}')">🗑️</button></td></tr>`;
       }).join('') + '</table>';
   } catch(e){ el.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
 }

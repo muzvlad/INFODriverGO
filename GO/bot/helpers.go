@@ -67,8 +67,6 @@ func (b *Bot) handleList(chatID string) string {
 		return "❌ Нет дней рождения в этой группе."
 	}
 
-	monthNames := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
-
 	birthdayList := make([]storage.Birthday, 0, len(birthdays))
 	for _, bd := range birthdays {
 		birthdayList = append(birthdayList, bd)
@@ -144,9 +142,14 @@ func (b *Bot) handleToday(chatID string) string {
 		result += fmt.Sprintf("💍 *Сегодня годовщины свадеб:* %s!\n\n", strings.Join(weddingList, ", "))
 	}
 
-	if len(b.congratulations) > 0 {
-		congrat := b.congratulations[rand.Intn(len(b.congratulations))]
+	b.mu.RLock()
+	congratLen := len(b.congratulations)
+	if congratLen > 0 {
+		congrat := b.congratulations[rand.Intn(congratLen)]
+		b.mu.RUnlock()
 		result += fmt.Sprintf("🎊 %s", congrat)
+	} else {
+		b.mu.RUnlock()
 	}
 
 	return result
@@ -154,7 +157,6 @@ func (b *Bot) handleToday(chatID string) string {
 
 func (b *Bot) handleUpcoming(chatID string) string {
 	birthdays := b.db.GetBirthdaysForGroup(chatID)
-	monthNames := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
 
 	type upcoming struct {
 		bd        storage.Birthday
@@ -232,8 +234,6 @@ func (b *Bot) handleWeddingsList(chatID string) string {
 		return "❌ Нет годовщин свадеб в этой группе."
 	}
 
-	monthNames := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
-
 	weddingList := make([]storage.Wedding, 0, len(weddings))
 	for _, w := range weddings {
 		weddingList = append(weddingList, w)
@@ -293,9 +293,12 @@ func (b *Bot) handleWeddingToday(chatID string) string {
 	}
 
 	result := "💍 *Сегодня годовщины свадеб:* " + strings.Join(weddingList, ", ") + "!\n\n"
-	if len(b.weddings) > 0 {
-		result += b.weddings[rand.Intn(len(b.weddings))]
+	b.mu.RLock()
+	wedLen := len(b.weddings)
+	if wedLen > 0 {
+		result += b.weddings[rand.Intn(wedLen)]
 	}
+	b.mu.RUnlock()
 	return result
 }
 
@@ -340,7 +343,9 @@ func (b *Bot) handleEvent(chatID, args string) string {
 		return err.Error()
 	}
 
+	b.mu.RLock()
 	eventText := b.events[strings.ToLower(eventName)]
+	b.mu.RUnlock()
 	if eventText == "" {
 		eventText = fmt.Sprintf("%s начинается!", eventName)
 	}

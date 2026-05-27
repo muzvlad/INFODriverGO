@@ -20,9 +20,16 @@ import (
 	"infodriver/storage"
 )
 
+var gracefulStop bool
+
 func main() {
 	for {
+		gracefulStop = false
 		runBot()
+		if gracefulStop {
+			return
+		}
+		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -61,7 +68,7 @@ func runBot() {
 	cfg := &bot.Config{
 		BotToken:      token,
 		Timezone:      getEnv("TIMEZONE", "Europe/Moscow"),
-		AdminUsername: "muzvlad911",
+		AdminUsername: getEnv("ADMIN_USERNAME", "muzvlad911"),
 		WishesFolder:  "wishes",
 	}
 
@@ -91,7 +98,7 @@ func runBot() {
 	apiServer := server.NewServer(db, apiPort, apiToken, "../GUI")
 	apiServer.SetOnTemplatesChanged(telegramBot.ReloadEvents)
 	apiServer.SetOnEventsChanged(func(chatID string) {
-		telegramBot.Scheduler().SetupEventJobs(chatID)
+		telegramBot.Scheduler().SetupAndCheckEvents(chatID)
 	})
 	go func() {
 		if err := apiServer.Start(); err != nil {
@@ -123,6 +130,7 @@ func runBot() {
 		defer shutdownCancel()
 		apiServer.Shutdown(shutdownCtx)
 		fmt.Println("[OK] Bot stopped")
+		gracefulStop = true
 		return
 	case <-telegramBot.Scheduler().RestartChan():
 		fmt.Println()

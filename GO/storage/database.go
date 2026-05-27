@@ -69,7 +69,7 @@ func NewDB(basePath string) (*DB, error) {
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		logger.Errorf("[DB] WAL pragma error: %v", err)
 	}
-	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
+	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
 		logger.Errorf("[DB] synchronous pragma error: %v", err)
 	}
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
@@ -341,8 +341,7 @@ func (d *DB) GetStatistics() map[string]interface{} {
 	defer d.mu.RUnlock()
 
 	var total, enabled int64
-	d.db.QueryRow(`SELECT COUNT(*) FROM groups`).Scan(&total)
-	d.db.QueryRow(`SELECT COUNT(*) FROM groups WHERE notifications_enabled = 1`).Scan(&enabled)
+	d.db.QueryRow(`SELECT COUNT(*), SUM(notifications_enabled) FROM groups`).Scan(&total, &enabled)
 
 	return map[string]interface{}{
 		"total_groups":                total,
@@ -471,12 +470,9 @@ func (d *DB) UpdateEvent(chatID, oldName, newName, eventType, timeStr, text stri
 			return false
 		}
 	}
-	_, err := d.db.Exec(`INSERT INTO events (chat_id, name, type, time, text) VALUES (?, ?, ?, ?, ?)`,
+	_, err := d.db.Exec(`INSERT OR REPLACE INTO events (chat_id, name, type, time, text) VALUES (?, ?, ?, ?, ?)`,
 		chatID, newName, eventType, timeStr, text)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
-			return false
-		}
 		logger.Errorf("[DB] UpdateEvent error: %v", err)
 		return false
 	}

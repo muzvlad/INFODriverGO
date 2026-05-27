@@ -1,6 +1,19 @@
 # INFODriverGO — Changelog
 
-## v1.12 (current)
+## v1.13 (current)
+- Fix data races: чтение `b.congratulations`/`b.weddings`/`b.events` теперь под `RLock`
+- Fix reminder key mismatch: `SetupThreeDaysReminder` и `RemoveReminderJob` используют одинаковый формат ключа (с именем) — напоминания корректно удаляются при `/delete` и `/несвадьба`
+- Fix events from admin panel: убран `go` из вызова `onEventsChanged`, добавлен `SetupAndCheckEvents` — джоб создаётся синхронно и сразу проверяется (без ожидания 30с цикла)
+- Fix UpdateEvent: `INSERT OR REPLACE` вместо `INSERT` — редактирование без смены имени больше не падает на UNIQUE
+- Fix getDaysUntil: DST-безопасное вычисление через `Hours()/24` вместо целочисленного деления `time.Duration`
+- Fix main loop: добавлен `time.Sleep(5s)` и флаг `gracefulStop` — при краше не жжёт CPU
+- Fix DB: `synchronous=FULL` → `NORMAL` (WAL + NORMAL в 10-100x быстрее на запись)
+- Fix GetStatistics: один запрос `COUNT(*), SUM()` вместо двух
+- Refactor: единая переменная `monthNames` в utils.go (убрано 4 дубликата)
+- Config: `AdminUsername` читается из `ADMIN_USERNAME` env (с fallback)
+- XSS: добавлена функция `esc()` в админке, экранирование пользовательских данных в HTML
+
+## v1.12
 - Remove dead code: internal/ (~650 строк), GO/groups/*.json, LoadAllGroups(), SendEventNotification(), rand.Seed(), SetupGroupJob/RemoveGroupJob, init() с log.SetFlags(0)
 - Fix handleNoEvent: добавлен RemoveEventJob — событие удаляется и из памяти
 - Fix AddEvent: INSERT OR REPLACE → INSERT + UNIQUE (как birthdays/weddings)

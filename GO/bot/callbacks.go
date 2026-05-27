@@ -153,8 +153,6 @@ func (b *Bot) handleBirthdayPagination(chatID string, editChatID int64, messageI
 		end = len(birthdays)
 	}
 
-	monthNames := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
-
 	result := fmt.Sprintf("🎂 *Дни рождения* (страница %d/%d)\n\n", page+1, totalPages)
 	index := start + 1
 

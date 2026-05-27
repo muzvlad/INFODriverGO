@@ -178,7 +178,7 @@ func (s *Server) handleGroupDetail(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if s.onEventsChanged != nil {
-				go s.onEventsChanged(id)
+				s.onEventsChanged(id)
 			}
 
 			s.sendSuccess(w, map[string]string{"status": "updated"})
@@ -323,7 +323,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			ok := s.db.AddEvent(chatID, data.Name, data.Type, data.Time, data.Text)
 			if ok {
 				if s.onEventsChanged != nil {
-					go s.onEventsChanged(chatID)
+					s.onEventsChanged(chatID)
 				}
 				s.sendSuccess(w, map[string]string{"status": "added"})
 			} else {
@@ -351,7 +351,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			ok := s.db.UpdateEvent(chatID, data.OldName, data.Name, data.Type, data.Time, data.Text)
 			if ok {
 				if s.onEventsChanged != nil {
-					go s.onEventsChanged(chatID)
+					s.onEventsChanged(chatID)
 				}
 				s.sendSuccess(w, map[string]string{"status": "updated"})
 			} else {
@@ -367,7 +367,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			ok := s.db.RemoveEvent(chatID, name)
 			if ok {
 				if s.onEventsChanged != nil {
-					go s.onEventsChanged(chatID)
+					s.onEventsChanged(chatID)
 				}
 				s.sendSuccess(w, map[string]string{"status": "deleted"})
 			} else {

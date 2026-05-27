@@ -46,6 +46,8 @@ func isValidTime(timeStr string) bool {
 	return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
 }
 
+var monthNames = []string{"", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
+
 func getDaysUntil(day, month int) int {
 	now := time.Now()
 	thisYear := time.Date(now.Year(), time.Month(month), day, 0, 0, 0, 0, now.Location())
@@ -54,7 +56,7 @@ func getDaysUntil(day, month int) int {
 		thisYear = thisYear.AddDate(1, 0, 0)
 	}
 
-	return int(thisYear.Sub(now) / (24 * time.Hour))
+	return int(thisYear.Sub(now).Hours() / 24)
 }
 
 func (b *Bot) GetRandomCongratulation() string {
