@@ -23,7 +23,19 @@ fi
 echo ""
 
 echo "[*] Stopping old bot instance..."
-pkill -f "infodriver" 2>/dev/null || true
+
+# If managed by systemd, restart via service
+if systemctl is-active --quiet infodriver 2>/dev/null; then
+    echo "[*] Bot is managed by systemd, restarting service..."
+    sudo systemctl restart infodriver
+    echo "[OK] Bot restarted via systemd"
+    echo ""
+    systemctl status infodriver --no-pager | head -5
+    exit 0
+fi
+
+# Manual kill — SIGKILL to ensure the process dies instantly
+pkill -9 -f "infodriver" 2>/dev/null || true
 sleep 1
 echo "[OK] Old instances stopped"
 echo ""
@@ -34,22 +46,23 @@ PID=$!
 echo "[OK] Bot started (PID: $PID)"
 echo ""
 
-echo "[*] Setting up auto-start on boot..."
-CRONLINE="@reboot cd $DIR && nohup ./infodriver > $DIR/bot.log 2>&1 &"
-(crontab -l 2>/dev/null | grep -v "infodriver"; echo "$CRONLINE") | crontab -
-echo "[OK] Added to crontab"
-
-# Also add to rc.local as fallback
-RCLOCAL_LINE="cd $DIR && nohup ./infodriver > $DIR/bot.log 2>&1 &"
-if grep -q "infodriver" /etc/rc.local 2>/dev/null; then
-    echo "[OK] Already in rc.local"
+echo "[*] Checking autostart..."
+if systemctl is-enabled --quiet infodriver 2>/dev/null; then
+    echo "[OK] systemd autostart is already configured (infodriver.service)"
 else
-    sudo sed -i "s|^exit 0|$RCLOCAL_LINE\\nexit 0|" /etc/rc.local 2>/dev/null && echo "[OK] Added to rc.local" || echo "[!] Could not add to rc.local (run with sudo?)"
+    echo "[!] systemd autostart not found — run: sudo systemctl enable infodriver"
 fi
-echo ""
 
-echo "[*] Current crontab:"
-crontab -l | grep infodriver
+# Clean up old crontab/rc.local entries to prevent duplicates
+OLD_CRON=$(crontab -l 2>/dev/null | grep "infodriver")
+if [ -n "$OLD_CRON" ]; then
+    (crontab -l 2>/dev/null | grep -v "infodriver") | crontab -
+    echo "[OK] Removed old crontab entry (superseded by systemd)"
+fi
+if grep -q "infodriver" /etc/rc.local 2>/dev/null; then
+    sudo sed -i "/infodriver/d" /etc/rc.local 2>/dev/null
+    echo "[OK] Removed old rc.local entry (superseded by systemd)"
+fi
 echo ""
 
 echo "========================================"
