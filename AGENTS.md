@@ -1,6 +1,22 @@
 # INFODriverGO — Changelog
 
-## v1.11 (current)
+## v1.12 (current)
+- Remove dead code: internal/ (~650 строк), GO/groups/*.json, LoadAllGroups(), SendEventNotification(), rand.Seed(), SetupGroupJob/RemoveGroupJob, init() с log.SetFlags(0)
+- Fix handleNoEvent: добавлен RemoveEventJob — событие удаляется и из памяти
+- Fix AddEvent: INSERT OR REPLACE → INSERT + UNIQUE (как birthdays/weddings)
+- Fix getDaysUntil: integer division вместо Hours()/24 (DST-безопасно)
+- Remove recover() под Lock в scheduler.run() — deadlock при панике
+- Graceful shutdown для HTTP-сервера (Shutdown с context.WithTimeout)
+- Кэш GroupSettings (double-check locking, инвалидация при writes)
+- Grace period 10 мин для reminder-джоб (как в checkEventJobs)
+- Добавлен уровневый логгер (GO/logger/logger.go) с поддержкой LOG_LEVEL из .env
+- Все log.Printf/log.Fatalf заменены на logger.Debugf/Infof/Warnf/Errorf/Fatalf
+- GUI path — параметр NewServer(db, port, token, guiPath)
+- Админка: добавлена вкладка «🧪 Тесты» с кнопкой запуска через /api/run-tests
+- Тесты: unit-тесты (bot/utils, bot/scheduler), интеграционные (storage, logger)
+- Скрипты: run_tests.bat (Windows), run_tests.sh (Linux)
+
+## v1.11
 - `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today
 - `checkEventJobs`: 10-minute grace period — past events fire once then reschedule; older events just reschedule (no duplicate on restart)
 - `run()`: call `checkJobs()` immediately after `loadEventJobs()` for catch-up on startup
