@@ -1,6 +1,19 @@
 # INFODriverGO — Changelog
 
-## v1.09 (current)
+## v1.11 (current)
+- `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today
+- `checkEventJobs`: 10-minute grace period — past events fire once then reschedule; older events just reschedule (no duplicate on restart)
+- `run()`: call `checkJobs()` immediately after `loadEventJobs()` for catch-up on startup
+- Logging: add date to `nextRun` log, fix per-group event count
+- Fix: duplicate bot instances (systemd + manual `./start_bot.sh`) causing SQLite lock on writes — kill old processes before restart
+
+## v1.10f
+- Debug: log each event in `checkEventJobs`, merge trigger+reschedule under single Lock
+
+## v1.10e
+- Add debug log in `checkEventJobs`, merge trigger+reschedule under single Lock
+
+## v1.09
 - Fix events form: show/hide pre-built fields instead of innerHTML — buttons now work
 
 ## v1.08
