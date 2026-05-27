@@ -23,6 +23,7 @@
 - GUI: выбор шаблона при добавлении события (dropdown)
 - GUI: колонка Текст в списке событий, кнопка редактирования ✏️
 - GUI: кнопка редактирования шаблона ✏️
+- Fix: таймаут тестов 10с → 120с (abort без причины)
 
 ## v1.11
 - `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today
