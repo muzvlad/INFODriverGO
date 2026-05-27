@@ -16,6 +16,8 @@
 - Тесты: unit-тесты (bot/utils, bot/scheduler), интеграционные (storage, logger)
 - Скрипты: run_tests.bat (Windows), run_tests.sh (Linux)
 - Fix: удалены захардкоженные массивы поздравлений из randomCongratulation/randomWeddingCongratulation — все поздравления только из БД
+- Deploy: добавлен deploy.sh — git pull + установка infodriver_arm64 + restart
+- Start: start_bot.sh теперь предпочитает pre-compiled ARM64 бинарник сборке из исходников
 
 ## v1.11
 - `calculateNextEventRun`: don't advance daily events to tomorrow — keeps `nextRun` on today

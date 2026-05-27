@@ -8,7 +8,14 @@ echo " INFODriver Bot - Start"
 echo "========================================"
 echo ""
 
-if [ ! -f "./infodriver" ]; then
+if [ -f "./infodriver_arm64" ]; then
+    echo "[OK] Pre-compiled ARM64 binary found"
+    if [ ! -f "./infodriver" ] || [ "./infodriver_arm64" -nt "./infodriver" ]; then
+        cp ./infodriver_arm64 ./infodriver
+        chmod +x ./infodriver
+        echo "[OK] Binary updated from infodriver_arm64"
+    fi
+elif [ ! -f "./infodriver" ]; then
     echo "[!] Binary not found, trying to build..."
     go build -o infodriver .
     if [ $? -ne 0 ]; then
