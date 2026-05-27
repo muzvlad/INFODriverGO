@@ -96,6 +96,7 @@ td .btn{padding:4px 10px;font-size:12px}
     <div class="sep"></div>
     <div class="nav-item" data-tab="tests">🧪 Тесты</div>
     <div class="sep"></div>
+    <div class="nav-item" data-tab="system">🖥️ Система</div>
     <div class="nav-item" onclick="disconnect()">🚪 Отключиться</div>
   </div>
   <div id="main">
@@ -213,6 +214,12 @@ td .btn{padding:4px 10px;font-size:12px}
       </div>
       <div id="tests-output" style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-family:monospace;font-size:13px;white-space:pre-wrap;overflow-x:auto;max-height:600px;overflow-y:auto"></div>
     </div>
+    <!-- System -->
+    <div class="tab" id="tab-system">
+      <h3>🖥️ Система</h3>
+      <button class="btn btn-primary" onclick="loadSystem()" id="sys-reload-btn">🔄 Обновить</button>
+      <div id="sys-output" style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:20px;font-family:monospace;font-size:14px;line-height:2"></div>
+    </div>
   </div>
 </div>
 
@@ -291,7 +298,7 @@ document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
     const tab = document.getElementById('tab-' + this.dataset.tab);
     if(tab) tab.classList.add('active');
     // refresh
-    const fns = {birthdays: loadBD, weddings: loadWed, events: loadEvt, templates: loadTpl, congratulations: loadCong, wishes: loadWish, groups: loadGroups, tests: function(){}};
+    const fns = {birthdays: loadBD, weddings: loadWed, events: loadEvt, templates: loadTpl, congratulations: loadCong, wishes: loadWish, groups: loadGroups, tests: function(){}, system: loadSystem};
     if(fns[this.dataset.tab]) fns[this.dataset.tab]();
   });
 });
@@ -751,6 +758,34 @@ async function runTests(){
     btn.disabled = false;
     btn.textContent = '▶️ Запустить тесты';
   }
+}
+
+async function loadSystem(){
+  const out = document.getElementById('sys-output');
+  const btn = document.getElementById('sys-reload-btn');
+  btn.disabled = true;
+  try {
+    const data = await api('GET', '/api/system-stats', null, 10000);
+    const s = data;
+    let html = '<table style="width:auto">';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">⏰ Uptime</td><td>'+esc(s.uptime||'-')+'</td></tr>';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">🧠 CPU</td><td>'+s.cpu_usage.toFixed(1)+'%</td></tr>';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">💾 RAM</td><td>'+fmtMem(s.memory_used)+' / '+fmtMem(s.memory_total)+' ('+s.memory_pct.toFixed(1)+'%)</td></tr>';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">🔢 Go</td><td>'+esc(s.go_version)+'</td></tr>';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">⚙️ CPU cores</td><td>'+s.num_cpu+'</td></tr>';
+    html += '<tr><td style="padding:4px 24px 4px 0;color:#8b949e">🧵 Goroutines</td><td>'+s.num_goroutine+'</td></tr>';
+    html += '</table>';
+    out.innerHTML = html;
+  } catch(e){ out.innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>' }
+  finally { btn.disabled = false; }
+}
+
+function fmtMem(kb){
+  if(kb === 0) return '0';
+  const mb = kb / 1024;
+  if(mb < 1024) return mb.toFixed(0) + ' MB';
+  const gb = mb / 1024;
+  return gb.toFixed(1) + ' GB';
 }
 </script>
 </body>

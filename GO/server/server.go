@@ -85,6 +85,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/event-templates", s.corsMiddleware(s.handleEventTemplates))
 	s.mux.HandleFunc("/api/run-tests", s.corsMiddleware(s.handleRunTests))
 	s.mux.HandleFunc("/api/stats", s.corsMiddleware(s.handleStats))
+	s.mux.HandleFunc("/api/system-stats", s.corsMiddleware(s.handleSystemStats))
 	s.mux.HandleFunc("/health", s.corsMiddleware(s.handleHealth))
 }
 
@@ -587,6 +588,17 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		stats["congratulations_count"] = s.db.GetCongratulationsCount()
 		stats["wedding_wishes_count"] = s.db.GetWeddingWishesCount()
 
+		s.sendSuccess(w, stats)
+	})(w, r)
+}
+
+func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
+	s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			s.sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+		stats := GetSystemStats()
 		s.sendSuccess(w, stats)
 	})(w, r)
 }
