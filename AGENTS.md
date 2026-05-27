@@ -3,7 +3,7 @@
 ## v1.13 (current)
 - Fix data races: чтение `b.congratulations`/`b.weddings`/`b.events` теперь под `RLock`
 - Fix reminder key mismatch: `SetupThreeDaysReminder` и `RemoveReminderJob` используют одинаковый формат ключа (с именем) — напоминания корректно удаляются при `/delete` и `/несвадьба`
-- Fix events from admin panel: убран `go` из вызова `onEventsChanged`, добавлен `SetupAndCheckEvents` — джоб создаётся синхронно и сразу проверяется (без ожидания 30с цикла)
+- Fix events from admin panel: убран `go` из вызова `onEventsChanged`, добавлен `SetupAndCheckEvents` — джоб создаётся синхронно и сразу проверяется (без ожидания 30с цикла); добавлен `force`-параметр в `checkEventJobs` — при добавлении события grace period не применяется, событие триггерится немедленно
 - Fix UpdateEvent: `INSERT OR REPLACE` вместо `INSERT` — редактирование без смены имени больше не падает на UNIQUE
 - Fix getDaysUntil: DST-безопасное вычисление через `Hours()/24` вместо целочисленного деления `time.Duration`
 - Fix main loop: добавлен `time.Sleep(5s)` и флаг `gracefulStop` — при краше не жжёт CPU

@@ -191,11 +191,13 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 	}
 }
 
-func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
+func (s *Scheduler) checkEventJobs(chatID string, now time.Time, force ...bool) {
 	type triggered struct {
 		key string
 		job *EventJob
 	}
+
+	bypassGrace := len(force) > 0 && force[0]
 
 	s.mu.RLock()
 	var toTrigger []triggered
@@ -208,7 +210,7 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
-			if now.Sub(t.job.NextRun) > 10*time.Minute {
+			if !bypassGrace && now.Sub(t.job.NextRun) > 10*time.Minute {
 				logger.Warnf("[SCHEDULER] Skipping late trigger for %s (%.0fs past), rescheduling", t.key, now.Sub(t.job.NextRun).Seconds())
 				s.rescheduleEvent(t.key, t.job)
 			} else {
@@ -531,7 +533,7 @@ func (s *Scheduler) RemoveReminderJob(chatID, name string, day, month int) {
 
 func (s *Scheduler) SetupAndCheckEvents(chatID string) {
 	s.SetupEventJobs(chatID)
-	s.checkEventJobs(chatID, time.Now())
+	s.checkEventJobs(chatID, time.Now(), true)
 }
 
 var globalSendFunc func(chatID, message string)
