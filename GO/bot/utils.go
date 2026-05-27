@@ -50,19 +50,11 @@ func getDaysUntil(day, month int) int {
 	now := time.Now()
 	thisYear := time.Date(now.Year(), time.Month(month), day, 0, 0, 0, 0, now.Location())
 
-	if thisYear.Year() == now.Year() && thisYear.Month() == now.Month() && thisYear.Day() == now.Day() {
-		return 0
-	}
-
 	if thisYear.Before(now) {
 		thisYear = thisYear.AddDate(1, 0, 0)
 	}
 
-	return int(thisYear.Sub(now).Hours() / 24)
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
+	return int(thisYear.Sub(now) / (24 * time.Hour))
 }
 
 func (b *Bot) GetRandomCongratulation() string {
@@ -88,23 +80,6 @@ func (b *Bot) GetRandomWeddingWish() string {
 func (b *Bot) SendGroupNotification(chatID string, message string) {
 	if id, err := strconv.ParseInt(chatID, 10, 64); err == nil {
 		b.api.Send(tgbotapi.NewMessage(id, message))
-	}
-}
-
-func (b *Bot) SendEventNotification(chatID string, eventName string, eventText string) {
-	if id, err := strconv.ParseInt(chatID, 10, 64); err == nil {
-		b.api.Send(tgbotapi.NewMessage(id, eventText))
-
-		gamingEvents := map[string]bool{"td": true, "ea": true, "ew": true}
-		if gamingEvents[strings.ToLower(eventName)] {
-			time.AfterFunc(2*time.Minute, func() {
-				repeatText := b.events["repeat"]
-				if repeatText == "" {
-					repeatText = "⚔️🛡 Го го го!"
-				}
-				b.api.Send(tgbotapi.NewMessage(id, repeatText))
-			})
-		}
 	}
 }
 

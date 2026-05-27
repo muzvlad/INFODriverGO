@@ -420,6 +420,7 @@ func (b *Bot) handleNoEvent(chatID, args string) string {
 	}
 
 	if b.db.RemoveEvent(chatID, args) {
+		b.scheduler.RemoveEventJob(chatID, args)
 		return fmt.Sprintf("✅ Событие '%s' удалено!", args)
 	}
 	return fmt.Sprintf("❌ Событие '%s' не найдено!", args)

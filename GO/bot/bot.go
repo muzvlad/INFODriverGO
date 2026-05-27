@@ -2,12 +2,12 @@ package bot
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"infodriver/logger"
 	"infodriver/storage"
 )
 
@@ -128,11 +128,11 @@ func (b *Bot) handleMyChatMember(update tgbotapi.Update) {
 
 	if newStatus == "member" || newStatus == "administrator" {
 		b.db.UpdateGroupInfo(chatID, chatName)
-		log.Printf("[BOT] Bot added to group: %s (%s)", chatName, chatID)
+		logger.Infof("[BOT] Bot added to group: %s (%s)", chatName, chatID)
 	}
 
 	if newStatus == "left" || newStatus == "kicked" {
-		log.Printf("[BOT] Bot removed from group: %s (%s)", chatName, chatID)
+		logger.Infof("[BOT] Bot removed from group: %s (%s)", chatName, chatID)
 	}
 }
 

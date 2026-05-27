@@ -1,12 +1,15 @@
 package server
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
+	"infodriver/logger"
 	"infodriver/storage"
 )
 
@@ -14,6 +17,7 @@ type Server struct {
 	db                 *storage.DB
 	port               string
 	token              string
+	guiPath            string
 	mux                *http.ServeMux
 	server             *http.Server
 	onTemplatesChanged func()
@@ -26,17 +30,25 @@ type APIResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func NewServer(db *storage.DB, port, token string) *Server {
+func NewServer(db *storage.DB, port, token, guiPath string) *Server {
 	return &Server{
-		db:    db,
-		port:  port,
-		token: token,
-		mux:   http.NewServeMux(),
+		db:      db,
+		port:    port,
+		token:   token,
+		guiPath: guiPath,
+		mux:     http.NewServeMux(),
 	}
 }
 
 func (s *Server) SetOnTemplatesChanged(fn func()) {
 	s.onTemplatesChanged = fn
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.server != nil {
+		return s.server.Shutdown(ctx)
+	}
+	return nil
 }
 
 func (s *Server) SetOnEventsChanged(fn func(chatID string)) {
@@ -46,7 +58,7 @@ func (s *Server) SetOnEventsChanged(fn func(chatID string)) {
 func (s *Server) Start() error {
 	s.setupRoutes()
 
-	fs := http.FileServer(http.Dir("../GUI"))
+	fs := http.FileServer(http.Dir(s.guiPath))
 	s.mux.Handle("/gui/", http.StripPrefix("/gui/", fs))
 
 	s.server = &http.Server{
@@ -56,8 +68,8 @@ func (s *Server) Start() error {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	log.Printf("[SERVER] Starting API server on port %s", s.port)
-	log.Printf("[SERVER] Admin panel: http://0.0.0.0:%s/gui/", s.port)
+	logger.Infof("[SERVER] Starting API server on port %s", s.port)
+	logger.Infof("[SERVER] Admin panel: http://0.0.0.0:%s/gui/", s.port)
 	return s.server.ListenAndServe()
 }
 
@@ -70,6 +82,7 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/wishes", s.corsMiddleware(s.handleWishes))
 	s.mux.HandleFunc("/api/events", s.corsMiddleware(s.handleEvents))
 	s.mux.HandleFunc("/api/event-templates", s.corsMiddleware(s.handleEventTemplates))
+	s.mux.HandleFunc("/api/run-tests", s.corsMiddleware(s.handleRunTests))
 	s.mux.HandleFunc("/api/stats", s.corsMiddleware(s.handleStats))
 	s.mux.HandleFunc("/health", s.corsMiddleware(s.handleHealth))
 }
@@ -524,6 +537,42 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 		s.sendSuccess(w, stats)
 	})(w, r)
+}
+
+func (s *Server) handleRunTests(w http.ResponseWriter, r *http.Request) {
+	s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			s.sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		results := make(map[string]interface{})
+
+		// Unit tests (bot)
+		unitOut, unitErr := runGoTest("./bot/...")
+		results["unit"] = map[string]interface{}{
+			"output":  unitOut,
+			"success": unitErr == nil,
+		}
+
+		// Integration tests (tests/)
+		integOut, integErr := runGoTest("./tests/...")
+		results["integration"] = map[string]interface{}{
+			"output":  integOut,
+			"success": integErr == nil,
+		}
+
+		s.sendSuccess(w, results)
+	})(w, r)
+}
+
+func runGoTest(pkg string) (string, error) {
+	cmd := exec.Command("go", "test", "-v", "-count=1", pkg)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := cmd.Run()
+	return out.String(), err
 }
 
 func (s *Server) sendSuccess(w http.ResponseWriter, data interface{}) {

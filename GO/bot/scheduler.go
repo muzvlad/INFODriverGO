@@ -2,12 +2,12 @@ package bot
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
 
+	"infodriver/logger"
 	"infodriver/storage"
 )
 
@@ -73,25 +73,18 @@ func (s *Scheduler) RestartChan() <-chan struct{} {
 func (s *Scheduler) run() {
 	defer s.wg.Done()
 
-	log.Printf("[SCHEDULER] Starting scheduler...")
+	logger.Infof("[SCHEDULER] Starting scheduler...")
 	s.loadEventJobs()
 	s.checkJobs()
-	log.Printf("[SCHEDULER] Initial catch-up done")
+	logger.Infof("[SCHEDULER] Initial catch-up done")
 
 	for {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("[SCHEDULER] Panic recovered: %v", r)
-				}
-			}()
-			s.checkJobs()
-		}()
+		s.checkJobs()
 		time.Sleep(30 * time.Second)
 
 		select {
 		case <-s.stopChan:
-			log.Printf("[SCHEDULER] Stopped")
+			logger.Infof("[SCHEDULER] Stopped")
 			return
 		default:
 		}
@@ -109,8 +102,6 @@ func (s *Scheduler) checkJobs() {
 	now := time.Now()
 	groups := s.db.GetGroupsWithNotifications()
 
-	log.Printf("[SCHEDULER] Checking jobs at %s for %d groups", now.Format("15:04:05"), len(groups))
-
 	s.checkDailyRestart(now)
 
 	for _, chatID := range groups {
@@ -126,7 +117,7 @@ func (s *Scheduler) checkDailyRestart(now time.Time) {
 	if hour == 23 && minute == 30 {
 		if now.Sub(s.lastRestartCheck) > 25*time.Minute {
 			s.lastRestartCheck = now
-			log.Printf("[SCHEDULER] Scheduled restart at 23:30, sending restart signal")
+			logger.Infof("[SCHEDULER] Scheduled restart at 23:30, sending restart signal")
 			select {
 			case s.restartChan <- struct{}{}:
 			default:
@@ -159,9 +150,8 @@ func (s *Scheduler) checkDailyNotifications(chatID string, now time.Time) {
 	s.mu.RUnlock()
 
 	diff := now.Sub(todayScheduled)
-	log.Printf("[SCHEDULER] Group %s: checking daily notify: now=%s, scheduled=%s, diff=%v", chatID, now.Format("15:04:05"), todayScheduled.Format("15:04:05"), diff)
 	if diff >= 0 && diff <= 3*time.Minute {
-		log.Printf("[SCHEDULER] Group %s: time matches, sending daily notification", chatID)
+		logger.Infof("[SCHEDULER] Group %s: sending daily notification at %s", chatID, now.Format("15:04:05"))
 		s.mu.Lock()
 		s.activeJobs[key] = now
 		s.mu.Unlock()
@@ -177,35 +167,27 @@ func (s *Scheduler) sendDailyNotifications(chatID string) {
 	var birthdayNames []string
 	var weddingNames []string
 
-	log.Printf("[SCHEDULER] Checking birthdays in group %s: count=%d", chatID, len(birthdays))
-
 	for _, b := range birthdays {
 		if b.Day == today.Day() && b.Month == int(today.Month()) {
 			birthdayNames = append(birthdayNames, b.Name)
-			log.Printf("[SCHEDULER] Found birthday today: %s", b.Name)
 		}
 	}
 
 	for _, w := range weddings {
 		if w.Day == today.Day() && w.Month == int(today.Month()) {
 			weddingNames = append(weddingNames, w.Name)
-			log.Printf("[SCHEDULER] Found wedding today: %s", w.Name)
 		}
 	}
 
 	if len(birthdayNames) > 0 {
 		message := fmt.Sprintf("🎉 Сегодня дни рождения у: %s! 🎂\n\n", strings.Join(birthdayNames, ", "))
 		message += randomCongratulation()
-		log.Printf("[SCHEDULER] Sending birthday notification: %s", message)
 		go sendMessage(chatID, message)
-	} else {
-		log.Printf("[SCHEDULER] No birthdays today in group %s", chatID)
 	}
 
 	if len(weddingNames) > 0 {
 		message := fmt.Sprintf("💍 Сегодня годовщины свадеб у: %s! 🎊\n\n", strings.Join(weddingNames, ", "))
 		message += randomWeddingCongratulation()
-		log.Printf("[SCHEDULER] Sending wedding notification: %s", message)
 		go sendMessage(chatID, message)
 	}
 }
@@ -219,27 +201,16 @@ func (s *Scheduler) checkEventJobs(chatID string, now time.Time) {
 	s.mu.RLock()
 	var toTrigger []triggered
 	for key, job := range s.eventJobs {
-		if job.ChatID == chatID {
-			log.Printf("[SCHEDULER] checkEventJobs event: key=%s name=%s nextRun=%s chatID=%s", key, job.Name, job.NextRun.Format("2006-01-02 15:04:05"), chatID)
-			if now.After(job.NextRun) || now.Equal(job.NextRun) {
-				toTrigger = append(toTrigger, triggered{key, job})
-			}
-		}
-	}
-	eventCount := 0
-	for _, job := range s.eventJobs {
-		if job.ChatID == chatID {
-			eventCount++
+		if job.ChatID == chatID && (now.After(job.NextRun) || now.Equal(job.NextRun)) {
+			toTrigger = append(toTrigger, triggered{key, job})
 		}
 	}
 	s.mu.RUnlock()
-
-	log.Printf("[SCHEDULER] Group %s: checkEventJobs total=%d toTrigger=%d", chatID, eventCount, len(toTrigger))
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
 			if now.Sub(t.job.NextRun) > 10*time.Minute {
-				log.Printf("[SCHEDULER] Skipping late trigger for %s (%.0fs past), rescheduling", t.key, now.Sub(t.job.NextRun).Seconds())
+				logger.Warnf("[SCHEDULER] Skipping late trigger for %s (%.0fs past), rescheduling", t.key, now.Sub(t.job.NextRun).Seconds())
 				s.rescheduleEvent(t.key, t.job)
 			} else {
 				go s.triggerEvent(t.job)
@@ -268,11 +239,14 @@ func (s *Scheduler) checkReminderJobs(chatID string, now time.Time) {
 	}
 	s.mu.RUnlock()
 
-	log.Printf("[SCHEDULER] Group %s: checkReminderJobs toTrigger=%d", chatID, len(toTrigger))
 	if len(toTrigger) > 0 {
 		s.mu.Lock()
 		for _, t := range toTrigger {
-			go s.triggerReminder(t.job)
+			if now.Sub(t.job.NextRun) > 10*time.Minute {
+				logger.Warnf("[SCHEDULER] Skipping late reminder for %s (%.0fs past)", t.key, now.Sub(t.job.NextRun).Seconds())
+			} else {
+				go s.triggerReminder(t.job)
+			}
 			s.rescheduleReminder(t.key, t.job)
 		}
 		s.mu.Unlock()
@@ -284,7 +258,7 @@ func (s *Scheduler) triggerEvent(job *EventJob) {
 	if message == "" {
 		message = fmt.Sprintf("%s начинается!", job.Name)
 	}
-	log.Printf("[SCHEDULER] Event triggered: %s - %s", job.Name, message)
+	logger.Infof("[SCHEDULER] Event triggered: %s - %s", job.Name, message)
 	sendMessage(job.ChatID, message)
 }
 
@@ -321,7 +295,7 @@ func (s *Scheduler) triggerReminder(job *ReminderJob) {
 		message = fmt.Sprintf("🔔 Напоминание: Через 3 дня годовщина свадьбы у %s (%s)!", job.Name, dateStr)
 	}
 
-	log.Printf("[SCHEDULER] Reminder triggered: %s", message)
+	logger.Infof("[SCHEDULER] Reminder triggered: %s", message)
 	sendMessage(job.ChatID, message)
 }
 
@@ -336,23 +310,8 @@ func (s *Scheduler) rescheduleReminder(key string, job *ReminderJob) {
 	}
 }
 
-func (s *Scheduler) SetupGroupJob(chatID string) {
-	key := "group_" + chatID
-	s.mu.Lock()
-	s.activeJobs[key] = time.Now()
-	s.mu.Unlock()
-	log.Printf("[SCHEDULER] SetupGroupJob called for %s", chatID)
-}
-
-func (s *Scheduler) RemoveGroupJob(chatID string) {
-	key := "group_" + chatID
-	s.mu.Lock()
-	delete(s.activeJobs, key)
-	s.mu.Unlock()
-}
-
 func (s *Scheduler) UpdateGroupJobTime(chatID string) {
-	log.Printf("[SCHEDULER] UpdateGroupJobTime called for %s", chatID)
+	logger.Debugf("[SCHEDULER] UpdateGroupJobTime called for %s", chatID)
 
 	settings := s.db.GetGroupSettings(chatID)
 
@@ -370,7 +329,7 @@ func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 			if now.After(todayScheduled) && now.Sub(todayScheduled) <= 2*time.Hour {
 				s.activeJobs[key] = now
 				s.mu.Unlock()
-				log.Printf("[SCHEDULER] Time %s already passed for today, sending immediately", settings.NotificationTime)
+				logger.Debugf("[SCHEDULER] Time %s already passed for today, sending immediately", settings.NotificationTime)
 				go s.sendDailyNotifications(chatID)
 				return
 			}
@@ -412,7 +371,7 @@ func (s *Scheduler) SetupEventJobs(chatID string) {
 		}
 
 		s.eventJobs[jobKey] = job
-		log.Printf("[SCHEDULER] Setup event job: %s, next run: %s", event.Name, nextRun.Format("2006-01-02 15:04:05"))
+		logger.Debugf("[SCHEDULER] Setup event job: %s, next run: %s", event.Name, nextRun.Format("2006-01-02 15:04:05"))
 	}
 }
 
@@ -552,7 +511,7 @@ func (s *Scheduler) SetupThreeDaysReminder(chatID, name string, day, month, year
 	s.reminderJobs[key] = job
 	s.mu.Unlock()
 
-	log.Printf("[SCHEDULER] Setup 3-day reminder for %s on %s", name, reminderDate.Format("2006-01-02 15:04"))
+	logger.Debugf("[SCHEDULER] Setup 3-day reminder for %s on %s", name, reminderDate.Format("2006-01-02 15:04"))
 }
 
 func (s *Scheduler) RemoveEventJob(chatID, eventName string) {
@@ -576,23 +535,23 @@ var getCongratulation func() string
 var getWeddingWish func() string
 
 func sendMessage(chatID, message string) {
-	log.Printf("[SEND] Sending to %s: %s", chatID, message)
+	logger.Debugf("[SEND] Sending to %s: %s", chatID, message)
 	if globalSendFunc != nil {
 		globalSendFunc(chatID, message)
 	} else {
-		log.Printf("[SEND] No globalSendFunc set!")
+		logger.Errorf("[SEND] No globalSendFunc set!")
 	}
 }
 
 func SetSendFunc(f func(chatID, message string)) {
 	globalSendFunc = f
-	log.Printf("[SCHEDULER] SendFunc set")
+	logger.Debugf("[SCHEDULER] SendFunc set")
 }
 
 func SetCongratulationFuncs(congFunc, weddingFunc func() string) {
 	getCongratulation = congFunc
 	getWeddingWish = weddingFunc
-	log.Printf("[SCHEDULER] Congratulation funcs set")
+	logger.Debugf("[SCHEDULER] Congratulation funcs set")
 }
 
 func randomCongratulation() string {
@@ -621,6 +580,3 @@ func randomWeddingCongratulation() string {
 	return congratulations[rand.Intn(len(congratulations))]
 }
 
-func init() {
-	log.SetFlags(0)
-}

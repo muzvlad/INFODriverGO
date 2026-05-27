@@ -132,7 +132,6 @@ func (b *Bot) handleStatus(chatID string) string {
 
 func (b *Bot) handleEnable(chatID string) string {
 	b.db.SetNotificationsEnabled(chatID, true)
-	b.scheduler.SetupGroupJob(chatID)
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -153,7 +152,6 @@ func (b *Bot) handleEnable(chatID string) string {
 
 func (b *Bot) handleDisable(chatID string) string {
 	b.db.SetNotificationsEnabled(chatID, false)
-	b.scheduler.RemoveGroupJob(chatID)
 	return "❌ Уведомления выключены.\nБот больше не будет присылать уведомления о днях рождения."
 }
 

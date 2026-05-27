@@ -14,5 +14,6 @@ GO/groups/*.json
 # Env
 .env
 
-# Old unused code
+# Old unused code (removed)
 internal/
+GO/groups/

@@ -3,7 +3,6 @@ package bot
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -113,37 +112,12 @@ func (b *Bot) handleAdminStats() string {
 }
 
 func (b *Bot) handleAdminFiles() string {
-	groupsDir := "groups"
-
-	entries, err := os.ReadDir(groupsDir)
-	if err != nil {
-		return "❌ Директория groups не найдена."
+	dbPath := "bot.db"
+	info, err := os.Stat(dbPath)
+	size := "N/A"
+	if err == nil {
+		size = fmt.Sprintf("%d bytes", info.Size())
 	}
 
-	jsonFiles := 0
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-			jsonFiles++
-		}
-	}
-
-	result := fmt.Sprintf("📁 *Информация о файлах:*\n\n📂 Директория: %s\n📄 JSON файлов: %d\n\n📝 *Список файлов:*\n", groupsDir, jsonFiles)
-
-	count := 0
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") && count < 10 {
-			path := filepath.Join(groupsDir, entry.Name())
-			info, _ := os.Stat(path)
-			if info != nil {
-				result += fmt.Sprintf("• %s (%d bytes)\n", entry.Name(), info.Size())
-			}
-			count++
-		}
-	}
-
-	if jsonFiles > 10 {
-		result += fmt.Sprintf("... и еще %d файлов", jsonFiles-10)
-	}
-
-	return result
+	return fmt.Sprintf("📁 *Информация о БД:*\n\n🗄️ Файл: %s\n📏 Размер: %s\n\n✅ Все данные хранятся в SQLite.", dbPath, size)
 }

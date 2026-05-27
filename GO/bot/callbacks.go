@@ -26,11 +26,9 @@ func (b *Bot) handleCallback(update tgbotapi.Update) {
 	switch data {
 	case "enable_notifications":
 		b.db.SetNotificationsEnabled(chatID, true)
-		b.scheduler.SetupGroupJob(chatID)
 		b.sendEdit(chatIDInt, query.Message.MessageID, "✅ Уведомления включены!\nТеперь бот будет присылать уведомления о днях рождения.")
 	case "disable_notifications":
 		b.db.SetNotificationsEnabled(chatID, false)
-		b.scheduler.RemoveGroupJob(chatID)
 		b.sendEdit(chatIDInt, query.Message.MessageID, "❌ Уведомления выключены.\nБот больше не будет присылать уведомления.")
 	case "show_settings":
 		b.sendSettingsWithKeyboard(chatID, query.Message.Chat)

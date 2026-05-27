@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,12 +9,14 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+	"infodriver/logger"
 )
 
 type DB struct {
-	db   *sql.DB
-	mu   sync.RWMutex
-	path string
+	db            *sql.DB
+	mu            sync.RWMutex
+	path          string
+	settingsCache map[string]*GroupSettings
 }
 
 type GroupSettings struct {
@@ -65,15 +66,21 @@ func NewDB(basePath string) (*DB, error) {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(12)
 
-	db.Exec("PRAGMA journal_mode=WAL")
-	db.Exec("PRAGMA synchronous=FULL")
-	db.Exec("PRAGMA busy_timeout=5000")
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		logger.Errorf("[DB] WAL pragma error: %v", err)
+	}
+	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
+		logger.Errorf("[DB] synchronous pragma error: %v", err)
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		logger.Errorf("[DB] busy_timeout pragma error: %v", err)
+	}
 
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 
-	database := &DB{db: db, path: dbPath}
+	database := &DB{db: db, path: dbPath, settingsCache: make(map[string]*GroupSettings)}
 
 	if err := database.init(); err != nil {
 		return nil, err
@@ -160,8 +167,10 @@ func (d *DB) init() error {
 func (d *DB) seedDefaultData() {
 	defaultGroups := []string{"249204598", "-5022355991", "-1003256918151", "-1002639028563", "-1001234567890"}
 	for _, chatID := range defaultGroups {
-	d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notification_time, last_updated) VALUES (?, ?, '10:00', ?)`,
-		chatID, "Группа "+chatID, time.Now().Format(time.RFC3339))
+		if _, err := d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notification_time, last_updated) VALUES (?, ?, '10:00', ?)`,
+			chatID, "Группа "+chatID, time.Now().Format(time.RFC3339)); err != nil {
+			logger.Errorf("[DB] seedDefaultData error: %v", err)
+		}
 	}
 }
 
@@ -171,6 +180,18 @@ func (d *DB) Close() error {
 
 func (d *DB) GetGroupSettings(chatID string) *GroupSettings {
 	d.mu.RLock()
+	s, ok := d.settingsCache[chatID]
+	d.mu.RUnlock()
+	if ok {
+		return s
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if s, ok := d.settingsCache[chatID]; ok {
+		return s
+	}
 
 	var settings GroupSettings
 	err := d.db.QueryRow(`
@@ -179,31 +200,32 @@ func (d *DB) GetGroupSettings(chatID string) *GroupSettings {
 		&settings.ChatID, &settings.ChatName, &settings.NotificationsEnabled,
 		&settings.NotificationTime, &settings.Timezone, &settings.LastUpdated)
 
-	d.mu.RUnlock()
-
 	if err == sql.ErrNoRows {
-		return d.createGroup(chatID, "Группа "+chatID)
+		return d.createGroupLocked(chatID, "Группа "+chatID)
 	}
 	if err != nil {
-		return &GroupSettings{ChatID: chatID, ChatName: "Группа " + chatID, NotificationTime: "10:00"}
+		logger.Errorf("[DB] GetGroupSettings error: %v", err)
+		s := &GroupSettings{ChatID: chatID, ChatName: "Группа " + chatID, NotificationTime: "10:00"}
+		d.settingsCache[chatID] = s
+		return s
 	}
 
 	if settings.NotificationTime == "" {
 		settings.NotificationTime = "10:00"
 	}
 
+	d.settingsCache[chatID] = &settings
 	return &settings
 }
 
-func (d *DB) createGroup(chatID, chatName string) *GroupSettings {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+func (d *DB) createGroupLocked(chatID, chatName string) *GroupSettings {
 	now := time.Now().Format(time.RFC3339)
-	d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notifications_enabled, notification_time, timezone, last_updated) 
-		VALUES (?, ?, 0, '10:00', 'Europe/Moscow', ?)`, chatID, chatName, now)
+	if _, err := d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notifications_enabled, notification_time, timezone, last_updated) 
+		VALUES (?, ?, 0, '10:00', 'Europe/Moscow', ?)`, chatID, chatName, now); err != nil {
+		logger.Errorf("[DB] createGroup error: %v", err)
+	}
 
-	return &GroupSettings{
+	s := &GroupSettings{
 		ChatID:               chatID,
 		ChatName:             chatName,
 		NotificationsEnabled: false,
@@ -211,18 +233,27 @@ func (d *DB) createGroup(chatID, chatName string) *GroupSettings {
 		Timezone:             "Europe/Moscow",
 		LastUpdated:          now,
 	}
+	d.settingsCache[chatID] = s
+	return s
 }
 
 func (d *DB) UpdateGroupInfo(chatID, chatName string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notification_time, last_updated) VALUES (?, ?, '10:00', ?)`,
-		chatID, chatName, time.Now().Format(time.RFC3339))
+	if _, err := d.db.Exec(`INSERT OR IGNORE INTO groups (chat_id, chat_name, notification_time, last_updated) VALUES (?, ?, '10:00', ?)`,
+		chatID, chatName, time.Now().Format(time.RFC3339)); err != nil {
+		logger.Errorf("[DB] UpdateGroupInfo insert error: %v", err)
+	}
 
 	_, err := d.db.Exec(`UPDATE groups SET chat_name = ?, last_updated = ? WHERE chat_id = ?`,
 		chatName, time.Now().Format(time.RFC3339), chatID)
-	return err
+	if err != nil {
+		logger.Errorf("[DB] UpdateGroupInfo update error: %v", err)
+		return err
+	}
+	delete(d.settingsCache, chatID)
+	return nil
 }
 
 func (d *DB) SetNotificationsEnabled(chatID string, enabled bool) error {
@@ -231,7 +262,12 @@ func (d *DB) SetNotificationsEnabled(chatID string, enabled bool) error {
 
 	_, err := d.db.Exec(`UPDATE groups SET notifications_enabled = ?, last_updated = ? WHERE chat_id = ?`,
 		enabled, time.Now().Format(time.RFC3339), chatID)
-	return err
+	if err != nil {
+		logger.Errorf("[DB] SetNotificationsEnabled error: %v", err)
+		return err
+	}
+	delete(d.settingsCache, chatID)
+	return nil
 }
 
 func (d *DB) SetNotificationTime(chatID, timeStr string) error {
@@ -240,15 +276,21 @@ func (d *DB) SetNotificationTime(chatID, timeStr string) error {
 
 	_, err := d.db.Exec(`UPDATE groups SET notification_time = ?, last_updated = ? WHERE chat_id = ?`,
 		timeStr, time.Now().Format(time.RFC3339), chatID)
-	return err
+	if err != nil {
+		logger.Errorf("[DB] SetNotificationTime error: %v", err)
+		return err
+	}
+	delete(d.settingsCache, chatID)
+	return nil
 }
 
 func (d *DB) GetAllGroups() map[string]*GroupSettings {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	rows, err := d.db.Query(`SELECT chat_id, chat_name, notifications_enabled, notification_time, timezone, last_updated FROM groups`)
 	if err != nil {
+		logger.Errorf("[DB] GetAllGroups error: %v", err)
 		return make(map[string]*GroupSettings)
 	}
 	defer rows.Close()
@@ -256,8 +298,12 @@ func (d *DB) GetAllGroups() map[string]*GroupSettings {
 	result := make(map[string]*GroupSettings)
 	for rows.Next() {
 		s := new(GroupSettings)
-		rows.Scan(&s.ChatID, &s.ChatName, &s.NotificationsEnabled, &s.NotificationTime, &s.Timezone, &s.LastUpdated)
+		if err := rows.Scan(&s.ChatID, &s.ChatName, &s.NotificationsEnabled, &s.NotificationTime, &s.Timezone, &s.LastUpdated); err != nil {
+			logger.Errorf("[DB] GetAllGroups scan error: %v", err)
+			continue
+		}
 		result[s.ChatID] = s
+		d.settingsCache[s.ChatID] = s
 	}
 
 	return result
@@ -269,7 +315,7 @@ func (d *DB) GetGroupsWithNotifications() []string {
 
 	rows, err := d.db.Query(`SELECT chat_id, notifications_enabled FROM groups`)
 	if err != nil {
-		log.Printf("[DB] GetGroupsWithNotifications error: %v", err)
+		logger.Errorf("[DB] GetGroupsWithNotifications error: %v", err)
 		return nil
 	}
 	defer rows.Close()
@@ -278,14 +324,15 @@ func (d *DB) GetGroupsWithNotifications() []string {
 	for rows.Next() {
 		var chatID string
 		var enabled int
-		rows.Scan(&chatID, &enabled)
-		log.Printf("[DB] Group %s: enabled=%d", chatID, enabled)
+		if err := rows.Scan(&chatID, &enabled); err != nil {
+			logger.Errorf("[DB] GetGroupsWithNotifications scan error: %v", err)
+			continue
+		}
 		if enabled == 1 {
 			result = append(result, chatID)
 		}
 	}
 
-	log.Printf("[DB] GetGroupsWithNotifications: total=%d groups", len(result))
 	return result
 }
 
@@ -315,6 +362,7 @@ func (d *DB) AddBirthday(chatID, name string, day, month, year int) bool {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return false
 		}
+		logger.Errorf("[DB] AddBirthday error: %v", err)
 		return false
 	}
 
@@ -347,7 +395,10 @@ func (d *DB) GetBirthdaysForGroup(chatID string) map[string]Birthday {
 	result := make(map[string]Birthday)
 	for rows.Next() {
 		var b Birthday
-		rows.Scan(&b.ID, &b.Name, &b.Day, &b.Month, &b.Year)
+		if err := rows.Scan(&b.ID, &b.Name, &b.Day, &b.Month, &b.Year); err != nil {
+			logger.Errorf("[DB] GetBirthdays scan error: %v", err)
+			continue
+		}
 		key := strings.ToLower(b.Name)
 		result[key] = b
 	}
@@ -365,6 +416,7 @@ func (d *DB) AddWedding(chatID, name string, day, month, year int) bool {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return false
 		}
+		logger.Errorf("[DB] AddWedding error: %v", err)
 		return false
 	}
 
@@ -397,7 +449,10 @@ func (d *DB) GetWeddingsForGroup(chatID string) map[string]Wedding {
 	result := make(map[string]Wedding)
 	for rows.Next() {
 		var w Wedding
-		rows.Scan(&w.ID, &w.Name, &w.Day, &w.Month, &w.Year)
+		if err := rows.Scan(&w.ID, &w.Name, &w.Day, &w.Month, &w.Year); err != nil {
+			logger.Errorf("[DB] GetWeddings scan error: %v", err)
+			continue
+		}
 		key := strings.ToLower(w.Name)
 		result[key] = w
 	}
@@ -409,9 +464,16 @@ func (d *DB) AddEvent(chatID, name, eventType, timeStr, text string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	_, err := d.db.Exec(`INSERT OR REPLACE INTO events (chat_id, name, type, time, text) VALUES (?, ?, ?, ?, ?)`,
+	_, err := d.db.Exec(`INSERT INTO events (chat_id, name, type, time, text) VALUES (?, ?, ?, ?, ?)`,
 		chatID, name, eventType, timeStr, text)
-	return err == nil
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return false
+		}
+		logger.Errorf("[DB] AddEvent error: %v", err)
+		return false
+	}
+	return true
 }
 
 func (d *DB) RemoveEvent(chatID, name string) bool {
@@ -440,7 +502,10 @@ func (d *DB) GetEventsForGroup(chatID string) map[string]Event {
 	result := make(map[string]Event)
 	for rows.Next() {
 		var e Event
-		rows.Scan(&e.ID, &e.Name, &e.Type, &e.Time, &e.Text)
+		if err := rows.Scan(&e.ID, &e.Name, &e.Type, &e.Time, &e.Text); err != nil {
+			logger.Errorf("[DB] GetEvents scan error: %v", err)
+			continue
+		}
 		key := strings.ToLower(e.Name)
 		result[key] = e
 	}
@@ -458,17 +523,13 @@ func (d *DB) GetNotificationTime(chatID string) string {
 	return settings.NotificationTime
 }
 
-func (d *DB) LoadAllGroups() error {
-	return nil
-}
-
 func (d *DB) GetAllCongratulations() []string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`SELECT text FROM congratulations WHERE is_active = 1`)
 	if err != nil {
-		log.Printf("[DB] GetAllCongratulations error: %v", err)
+		logger.Errorf("[DB] GetAllCongratulations error: %v", err)
 		return nil
 	}
 	defer rows.Close()
@@ -476,7 +537,10 @@ func (d *DB) GetAllCongratulations() []string {
 	var result []string
 	for rows.Next() {
 		var text string
-		rows.Scan(&text)
+		if err := rows.Scan(&text); err != nil {
+			logger.Errorf("[DB] GetAllCongratulations scan error: %v", err)
+			continue
+		}
 		result = append(result, text)
 	}
 	return result
@@ -488,7 +552,7 @@ func (d *DB) GetAllWeddingWishes() []string {
 
 	rows, err := d.db.Query(`SELECT text FROM wedding_wishes WHERE is_active = 1`)
 	if err != nil {
-		log.Printf("[DB] GetAllWeddingWishes error: %v", err)
+		logger.Errorf("[DB] GetAllWeddingWishes error: %v", err)
 		return nil
 	}
 	defer rows.Close()
@@ -496,7 +560,10 @@ func (d *DB) GetAllWeddingWishes() []string {
 	var result []string
 	for rows.Next() {
 		var text string
-		rows.Scan(&text)
+		if err := rows.Scan(&text); err != nil {
+			logger.Errorf("[DB] GetAllWeddingWishes scan error: %v", err)
+			continue
+		}
 		result = append(result, text)
 	}
 	return result
@@ -524,7 +591,7 @@ func (d *DB) RemoveCongratulations(text string) bool {
 
 	res, err := d.db.Exec(`DELETE FROM congratulations WHERE text = ? AND is_active = 1`, text)
 	if err != nil {
-		log.Printf("[DB] RemoveCongratulations error: %v", err)
+		logger.Errorf("[DB] RemoveCongratulations error: %v", err)
 		return false
 	}
 	affected, _ := res.RowsAffected()
@@ -537,7 +604,7 @@ func (d *DB) RemoveWeddingWish(text string) bool {
 
 	res, err := d.db.Exec(`DELETE FROM wedding_wishes WHERE text = ? AND is_active = 1`, text)
 	if err != nil {
-		log.Printf("[DB] RemoveWeddingWish error: %v", err)
+		logger.Errorf("[DB] RemoveWeddingWish error: %v", err)
 		return false
 	}
 	affected, _ := res.RowsAffected()
@@ -590,7 +657,10 @@ func (d *DB) GetAllEventTemplates() map[string]string {
 
 	for rows.Next() {
 		var key, text string
-		rows.Scan(&key, &text)
+		if err := rows.Scan(&key, &text); err != nil {
+			logger.Errorf("[DB] GetAllEventTemplates scan error: %v", err)
+			continue
+		}
 		result[key] = text
 	}
 	return result

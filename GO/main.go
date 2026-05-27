@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"infodriver/bot"
+	"infodriver/logger"
 	"infodriver/server"
 	"infodriver/storage"
 )
@@ -29,7 +31,7 @@ func setMemoryLimit() {
 
 	debug.SetGCPercent(50)
 
-	log.Printf("[MAIN] Memory limits set: GOMAXPROCS=1, GC=50%%")
+	logger.Infof("[MAIN] Memory limits set: GOMAXPROCS=1, GC=50%%")
 }
 
 func runBot() {
@@ -53,7 +55,7 @@ func runBot() {
 	if token == "" {
 		fmt.Println("[ERROR] BOT_TOKEN not set!")
 		fmt.Println("Set environment variable: set BOT_TOKEN=your_token")
-		log.Fatalf("[ERROR] BOT_TOKEN not set!")
+		logger.Fatalf("[ERROR] BOT_TOKEN not set!")
 	}
 
 	cfg := &bot.Config{
@@ -65,35 +67,35 @@ func runBot() {
 
 	db, err := storage.NewDB(".")
 	if err != nil {
-		log.Fatalf("[ERROR] Database init failed: %v", err)
+		logger.Fatalf("[ERROR] Database init failed: %v", err)
 	}
 	defer db.Close()
 
-	log.Printf("[MAIN] Database initialized")
+	logger.Infof("[MAIN] Database initialized")
 
 	telegramBot, err := bot.NewBot(cfg, db)
 	if err != nil {
-		log.Fatalf("[ERROR] Bot creation failed: %v", err)
+		logger.Fatalf("[ERROR] Bot creation failed: %v", err)
 	}
 
 	bot.SetSendFunc(telegramBot.SendGroupNotification)
 
 	fmt.Println("[OK] Bot initialized!")
-	log.Printf("[MAIN] Bot initialized")
+	logger.Infof("[MAIN] Bot initialized")
 
 	bot.SetCongratulationFuncs(telegramBot.GetRandomCongratulation, telegramBot.GetRandomWeddingWish)
 
 	apiPort := getEnv("API_PORT", "8080")
 	apiToken := getEnv("API_TOKEN", "infodriver_secret_token")
 
-	apiServer := server.NewServer(db, apiPort, apiToken)
+	apiServer := server.NewServer(db, apiPort, apiToken, "../GUI")
 	apiServer.SetOnTemplatesChanged(telegramBot.ReloadEvents)
 	apiServer.SetOnEventsChanged(func(chatID string) {
 		telegramBot.Scheduler().SetupEventJobs(chatID)
 	})
 	go func() {
 		if err := apiServer.Start(); err != nil {
-			log.Printf("[SERVER] API server error: %v", err)
+			logger.Errorf("[SERVER] API server error: %v", err)
 		}
 	}()
 
@@ -117,12 +119,18 @@ func runBot() {
 		fmt.Println()
 		fmt.Println("[STOP] Stopping bot...")
 		telegramBot.Stop()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		apiServer.Shutdown(shutdownCtx)
 		fmt.Println("[OK] Bot stopped")
 		return
 	case <-telegramBot.Scheduler().RestartChan():
 		fmt.Println()
 		fmt.Println("[RESTART] Restarting bot...")
 		telegramBot.Stop()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		apiServer.Shutdown(shutdownCtx)
 		fmt.Println("[OK] Bot stopped, restarting...")
 		time.Sleep(2 * time.Second)
 		cmd := exec.Command(os.Args[0])

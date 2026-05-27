@@ -94,6 +94,8 @@ td .btn{padding:4px 10px;font-size:12px}
     <div class="nav-item" data-tab="congratulations">🎉 Поздравления</div>
     <div class="nav-item" data-tab="wishes">💐 Свадебные пожелания</div>
     <div class="sep"></div>
+    <div class="nav-item" data-tab="tests">🧪 Тесты</div>
+    <div class="sep"></div>
     <div class="nav-item" onclick="disconnect()">🚪 Отключиться</div>
   </div>
   <div id="main">
@@ -185,6 +187,13 @@ td .btn{padding:4px 10px;font-size:12px}
       </div>
       <div id="wish-list"></div>
     </div>
+    <!-- Tests -->
+    <div class="tab" id="tab-tests">
+      <h3>🧪 Тесты</h3>
+      <p style="color:#8b949e;margin-bottom:16px;font-size:13px">Запуск тестов на сервере (go test -v). Результат появится ниже.</p>
+      <button class="btn btn-primary" onclick="runTests()" id="run-tests-btn">▶️ Запустить тесты</button>
+      <div id="tests-output" style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-family:monospace;font-size:13px;white-space:pre-wrap;overflow-x:auto;max-height:600px;overflow-y:auto"></div>
+    </div>
   </div>
 </div>
 
@@ -261,7 +270,7 @@ document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
     const tab = document.getElementById('tab-' + this.dataset.tab);
     if(tab) tab.classList.add('active');
     // refresh
-    const fns = {birthdays: loadBD, weddings: loadWed, events: loadEvt, templates: loadTpl, congratulations: loadCong, wishes: loadWish, groups: loadGroups};
+    const fns = {birthdays: loadBD, weddings: loadWed, events: loadEvt, templates: loadTpl, congratulations: loadCong, wishes: loadWish, groups: loadGroups, tests: function(){}};
     if(fns[this.dataset.tab]) fns[this.dataset.tab]();
   });
 });
@@ -563,6 +572,39 @@ async function delWish(text){
     toast('✅ Удалено', 'success');
     loadWish();
   } catch(e){ toast('❌ ' + e.message, 'error') }
+}
+
+// Tests
+async function runTests(){
+  const btn = document.getElementById('run-tests-btn');
+  const out = document.getElementById('tests-output');
+  btn.disabled = true;
+  btn.textContent = '⏳ Запуск...';
+  out.textContent = 'Running tests...\n';
+  try {
+    const data = await api('POST', '/api/run-tests');
+    let text = '';
+    if(data.unit) {
+      text += '═══════════════════════════════════════\n';
+      text += ' UNIT TESTS (bot/...)\n';
+      text += '═══════════════════════════════════════\n';
+      text += data.unit.output + '\n';
+      text += '→ ' + (data.unit.success ? '✅ PASS' : '❌ FAIL') + '\n\n';
+    }
+    if(data.integration) {
+      text += '═══════════════════════════════════════\n';
+      text += ' INTEGRATION TESTS (tests/...)\n';
+      text += '═══════════════════════════════════════\n';
+      text += data.integration.output + '\n';
+      text += '→ ' + (data.integration.success ? '✅ PASS' : '❌ FAIL') + '\n';
+    }
+    out.textContent = text;
+    toast('Тесты завершены', data.unit && data.integration && data.unit.success && data.integration.success ? 'success' : 'error');
+  } catch(e){ toast('❌ ' + e.message, 'error'); out.textContent += '\nERROR: ' + e.message + '\n'; }
+  finally {
+    btn.disabled = false;
+    btn.textContent = '▶️ Запустить тесты';
+  }
 }
 </script>
 </body>
