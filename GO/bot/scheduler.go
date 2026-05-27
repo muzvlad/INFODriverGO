@@ -354,6 +354,7 @@ func (s *Scheduler) SetupEventJobs(chatID string) {
 
 		nextRun := s.calculateNextEventRun(event.Type, event.Time, now, settings.NotificationTime)
 		if nextRun.IsZero() {
+			logger.Infof("[SCHEDULER] Skipping event %s (type=%s time=%q) — zero nextRun", event.Name, event.Type, event.Time)
 			continue
 		}
 
@@ -467,7 +468,7 @@ func (s *Scheduler) calculateNextEventRun(eventType, timeStr string, now time.Ti
 
 func parseTimeStr(timeStr string) (int, int) {
 	parts := strings.Split(timeStr, ":")
-	if len(parts) != 2 {
+	if len(parts) < 2 {
 		return 9, 0
 	}
 	return parseInt(parts[0]), parseInt(parts[1])
