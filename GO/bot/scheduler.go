@@ -354,32 +354,29 @@ func (s *Scheduler) RemoveGroupJob(chatID string) {
 func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 	log.Printf("[SCHEDULER] UpdateGroupJobTime called for %s", chatID)
 
+	settings := s.db.GetGroupSettings(chatID)
+
 	now := time.Now()
 	today := now.Format("2006-01-02")
 	key := "notify_" + chatID + "_" + today
 
 	s.mu.Lock()
 	delete(s.activeJobs, key)
+
+	if settings.NotificationsEnabled {
+		notificationTime, err := time.Parse("15:04", settings.NotificationTime)
+		if err == nil {
+			todayScheduled := time.Date(now.Year(), now.Month(), now.Day(), notificationTime.Hour(), notificationTime.Minute(), 0, 0, now.Location())
+			if now.After(todayScheduled) && now.Sub(todayScheduled) <= 2*time.Hour {
+				s.activeJobs[key] = now
+				s.mu.Unlock()
+				log.Printf("[SCHEDULER] Time %s already passed for today, sending immediately", settings.NotificationTime)
+				go s.sendDailyNotifications(chatID)
+				return
+			}
+		}
+	}
 	s.mu.Unlock()
-
-	settings := s.db.GetGroupSettings(chatID)
-	if !settings.NotificationsEnabled {
-		return
-	}
-
-	notificationTime, err := time.Parse("15:04", settings.NotificationTime)
-	if err != nil {
-		return
-	}
-
-	todayScheduled := time.Date(now.Year(), now.Month(), now.Day(), notificationTime.Hour(), notificationTime.Minute(), 0, 0, now.Location())
-	if now.After(todayScheduled) && now.Sub(todayScheduled) <= 2*time.Hour {
-		log.Printf("[SCHEDULER] Time %s already passed for today, sending immediately", settings.NotificationTime)
-		s.mu.Lock()
-		s.activeJobs[key] = now
-		s.mu.Unlock()
-		go s.sendDailyNotifications(chatID)
-	}
 }
 
 func (s *Scheduler) SetupEventJobs(chatID string) {
@@ -455,16 +452,14 @@ func (s *Scheduler) calculateNextEventRun(eventType, timeStr string, now time.Ti
 		}
 
 		daysAhead := int(targetDay) - int(now.Weekday())
-		if daysAhead <= 0 {
-			daysAhead += 7
-		}
-
-		if eventType == "двухнедельно" {
-			daysAhead += 7
-		}
-
 		next := now.AddDate(0, 0, daysAhead)
 		next = time.Date(next.Year(), next.Month(), next.Day(), hour, minute, 0, 0, now.Location())
+		if next.Before(now) || next.Equal(now) {
+			next = next.AddDate(0, 0, 7)
+		}
+		if eventType == "двухнедельно" {
+			next = next.AddDate(0, 0, 7)
+		}
 		return next
 
 	case "ежемесячно":
