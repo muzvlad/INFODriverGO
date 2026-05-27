@@ -74,6 +74,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) setupRoutes() {
+	s.mux.HandleFunc("/favicon.ico", s.corsMiddleware(s.handleFavicon))
 	s.mux.HandleFunc("/api/groups", s.corsMiddleware(s.handleGroups))
 	s.mux.HandleFunc("/api/groups/", s.corsMiddleware(s.handleGroupDetail))
 	s.mux.HandleFunc("/api/birthdays", s.corsMiddleware(s.handleBirthdays))
@@ -537,6 +538,10 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 		s.sendSuccess(w, stats)
 	})(w, r)
+}
+
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleRunTests(w http.ResponseWriter, r *http.Request) {
