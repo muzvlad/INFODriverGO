@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -19,6 +20,18 @@ import (
 	"infodriver/server"
 	"infodriver/storage"
 )
+
+type timestampWriter struct {
+	w io.Writer
+}
+
+func (tw *timestampWriter) Write(p []byte) (int, error) {
+	_, err := fmt.Fprintf(tw.w, "%s ", time.Now().Format("02.01.2006 15:04:05"))
+	if err != nil {
+		return 0, err
+	}
+	return tw.w.Write(p)
+}
 
 var gracefulStop bool
 
@@ -49,9 +62,9 @@ func runBot() {
 	os.MkdirAll("logs", 0755)
 	logFile, err := os.OpenFile("logs/bot_"+time.Now().Format("2006-01-02")+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err == nil {
-		log.SetOutput(logFile)
+		log.SetOutput(&timestampWriter{w: logFile})
 	}
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	log.SetFlags(0)
 
 	fmt.Println("========================================")
 	fmt.Println("INFODriver Bot - Build OK")
