@@ -51,7 +51,7 @@ func runBot() {
 	if err == nil {
 		log.SetOutput(logFile)
 	}
-	log.SetFlags(0)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	fmt.Println("========================================")
 	fmt.Println("INFODriver Bot - Build OK")
