@@ -12,6 +12,7 @@ import (
 
 type Scheduler struct {
 	db                   *storage.DB
+	location             *time.Location
 	stopChan             chan struct{}
 	restartChan          chan struct{}
 	wg                   sync.WaitGroup
@@ -19,8 +20,7 @@ type Scheduler struct {
 	activeJobs           map[string]time.Time
 	eventJobs            map[string]*EventJob
 	reminderJobs         map[string]*ReminderJob
-	lastNotificationSent map[string]time.Time
-	lastRestartCheck     time.Time
+	lastRestartCheck time.Time
 }
 
 type EventJob struct {
@@ -42,16 +42,22 @@ type ReminderJob struct {
 	NextRun time.Time
 }
 
-func NewScheduler(db *storage.DB) *Scheduler {
+func NewScheduler(db *storage.DB, timezone string) *Scheduler {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 23, 30, 0, 0, loc)
 	return &Scheduler{
 		db:                   db,
+		location:             loc,
 		stopChan:             make(chan struct{}),
 		restartChan:          make(chan struct{}),
 		activeJobs:           make(map[string]time.Time),
-		eventJobs:            make(map[string]*EventJob),
-		reminderJobs:         make(map[string]*ReminderJob),
-		lastNotificationSent: make(map[string]time.Time),
-		lastRestartCheck:     time.Now(),
+		eventJobs:        make(map[string]*EventJob),
+		reminderJobs:     make(map[string]*ReminderJob),
+		lastRestartCheck: today.Add(-31 * time.Minute),
 	}
 }
 
@@ -97,7 +103,7 @@ func (s *Scheduler) loadEventJobs() {
 }
 
 func (s *Scheduler) checkJobs() {
-	now := time.Now()
+	now := time.Now().In(s.location)
 	groups := s.db.GetGroupsWithNotifications()
 
 	s.checkDailyRestart(now)
@@ -249,7 +255,7 @@ func (s *Scheduler) triggerEvent(job *EventJob) {
 }
 
 func (s *Scheduler) rescheduleEvent(key string, job *EventJob) {
-	now := time.Now()
+	now := time.Now().In(s.location)
 
 	switch job.Type {
 	case "ежедневно":
@@ -285,7 +291,7 @@ func (s *Scheduler) triggerReminder(job *ReminderJob) {
 }
 
 func (s *Scheduler) rescheduleReminder(key string, job *ReminderJob) {
-	now := time.Now()
+	now := time.Now().In(s.location)
 	nextYear := now.Year() + 1
 	job.NextRun = time.Date(nextYear, time.Month(job.Month), job.Day, 9, 0, 0, 0, now.Location())
 	job.NextRun = job.NextRun.AddDate(0, 0, -3)
@@ -300,7 +306,7 @@ func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 
 	settings := s.db.GetGroupSettings(chatID)
 
-	now := time.Now()
+	now := time.Now().In(s.location)
 	today := now.Format("2006-01-02")
 	key := "notify_" + chatID + "_" + today
 
@@ -326,7 +332,7 @@ func (s *Scheduler) UpdateGroupJobTime(chatID string) {
 func (s *Scheduler) SetupEventJobs(chatID string) {
 	events := s.db.GetEventsForGroup(chatID)
 	settings := s.db.GetGroupSettings(chatID)
-	now := time.Now()
+	now := time.Now().In(s.location)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -465,8 +471,8 @@ func parseInt(s string) int {
 	return val
 }
 
-func (s *Scheduler) SetupThreeDaysReminder(chatID, name string, day, month, year int) {
-	now := time.Now()
+func (s *Scheduler) SetupThreeDaysReminder(chatID, name string, day, month, year int, reminderType string) {
+	now := time.Now().In(s.location)
 	birthDate := time.Date(now.Year(), time.Month(month), day, 9, 0, 0, 0, now.Location())
 	if birthDate.Before(now) {
 		birthDate = birthDate.AddDate(1, 0, 0)
@@ -475,11 +481,6 @@ func (s *Scheduler) SetupThreeDaysReminder(chatID, name string, day, month, year
 	reminderDate := birthDate.AddDate(0, 0, -3)
 	if reminderDate.Before(now) {
 		reminderDate = reminderDate.AddDate(1, 0, 0)
-	}
-
-	reminderType := "birthday"
-	if strings.Contains(strings.ToLower(name), "свадьба") || strings.Contains(strings.ToLower(name), "wedding") {
-		reminderType = "wedding"
 	}
 
 	job := &ReminderJob{
@@ -518,7 +519,7 @@ func (s *Scheduler) RemoveReminderJob(chatID, name string, day, month int) {
 
 func (s *Scheduler) SetupAndCheckEvents(chatID string) {
 	s.SetupEventJobs(chatID)
-	s.checkEventJobs(chatID, time.Now(), true)
+	s.checkEventJobs(chatID, time.Now().In(s.location), true)
 }
 
 var globalSendFunc func(chatID, message string)

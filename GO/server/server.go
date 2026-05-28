@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -62,10 +64,9 @@ func (s *Server) Start() error {
 	s.mux.Handle("/gui/", http.StripPrefix("/gui/", fs))
 
 	s.server = &http.Server{
-		Addr:         ":" + s.port,
-		Handler:      s.mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:        ":" + s.port,
+		Handler:     s.mux,
+		ReadTimeout: 30 * time.Second,
 	}
 
 	logger.Infof("[SERVER] Starting API server on port %s", s.port)
@@ -407,50 +408,50 @@ func (s *Server) handleEventTemplates(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if s.onTemplatesChanged != nil {
-				go s.onTemplatesChanged()
-			}
+		if s.onTemplatesChanged != nil {
+			go s.onTemplatesChanged()
+		}
 
-			s.sendSuccess(w, map[string]string{"status": "saved"})
-		case http.MethodPut:
-			var data struct {
-				OldKey string `json:"old_key"`
-				Key    string `json:"key"`
-				Text   string `json:"text"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-				s.sendError(w, http.StatusBadRequest, "Invalid JSON")
-				return
-			}
-			if data.Key == "" || data.Text == "" {
-				s.sendError(w, http.StatusBadRequest, "key and text required")
-				return
-			}
-			err := s.db.UpdateEventTemplate(data.OldKey, strings.ToLower(data.Key), data.Text)
-			if err != nil {
-				s.sendError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			if s.onTemplatesChanged != nil {
-				go s.onTemplatesChanged()
-			}
-			s.sendSuccess(w, map[string]string{"status": "updated"})
-		case http.MethodDelete:
-			key := r.URL.Query().Get("key")
-			if key == "" {
-				s.sendError(w, http.StatusBadRequest, "key required")
-				return
-			}
+		s.sendSuccess(w, map[string]string{"status": "saved"})
+	case http.MethodPut:
+		var data struct {
+			OldKey string `json:"old_key"`
+			Key    string `json:"key"`
+			Text   string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+			s.sendError(w, http.StatusBadRequest, "Invalid JSON")
+			return
+		}
+		if data.Key == "" || data.Text == "" {
+			s.sendError(w, http.StatusBadRequest, "key and text required")
+			return
+		}
+		err := s.db.UpdateEventTemplate(data.OldKey, strings.ToLower(data.Key), data.Text)
+		if err != nil {
+			s.sendError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if s.onTemplatesChanged != nil {
+			go s.onTemplatesChanged()
+		}
+		s.sendSuccess(w, map[string]string{"status": "updated"})
+	case http.MethodDelete:
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			s.sendError(w, http.StatusBadRequest, "key required")
+			return
+		}
 
-			err := s.db.RemoveEventTemplate(key)
-			if err != nil {
-				s.sendError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+		err := s.db.RemoveEventTemplate(key)
+		if err != nil {
+			s.sendError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
-			if s.onTemplatesChanged != nil {
-				s.onTemplatesChanged()
-			}
+		if s.onTemplatesChanged != nil {
+			go s.onTemplatesChanged()
+		}
 
 			s.sendSuccess(w, map[string]string{"status": "deleted"})
 		default:
@@ -567,24 +568,11 @@ func (s *Server) handleWishes(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		stats := s.db.GetStatistics()
+		totals := s.db.GetAllTotals()
 
-		allGroups := s.db.GetAllGroups()
-		totalBD := 0
-		totalWed := 0
-		totalEvents := 0
-
-		for _, g := range allGroups {
-			bds := s.db.GetBirthdaysForGroup(g.ChatID)
-			weds := s.db.GetWeddingsForGroup(g.ChatID)
-			evts := s.db.GetEventsForGroup(g.ChatID)
-			totalBD += len(bds)
-			totalWed += len(weds)
-			totalEvents += len(evts)
-		}
-
-		stats["total_birthdays"] = totalBD
-		stats["total_weddings"] = totalWed
-		stats["total_events"] = totalEvents
+		stats["total_birthdays"] = totals["total_birthdays"]
+		stats["total_weddings"] = totals["total_weddings"]
+		stats["total_events"] = totals["total_events"]
 		stats["congratulations_count"] = s.db.GetCongratulationsCount()
 		stats["wedding_wishes_count"] = s.db.GetWeddingWishesCount()
 
@@ -616,15 +604,15 @@ func (s *Server) handleRunTests(w http.ResponseWriter, r *http.Request) {
 
 		results := make(map[string]interface{})
 
-		// Unit tests (bot)
-		unitOut, unitErr := runGoTest("./bot/...")
+		pkgDir := findModuleDir()
+
+		unitOut, unitErr := runGoTest(pkgDir, "./bot/...")
 		results["unit"] = map[string]interface{}{
 			"output":  unitOut,
 			"success": unitErr == nil,
 		}
 
-		// Integration tests (tests/)
-		integOut, integErr := runGoTest("./tests/...")
+		integOut, integErr := runGoTest(pkgDir, "./tests/...")
 		results["integration"] = map[string]interface{}{
 			"output":  integOut,
 			"success": integErr == nil,
@@ -634,12 +622,34 @@ func (s *Server) handleRunTests(w http.ResponseWriter, r *http.Request) {
 	})(w, r)
 }
 
-func runGoTest(pkg string) (string, error) {
-	cmd := exec.Command("go", "test", "-v", "-count=1", pkg)
+func findModuleDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	dir := filepath.Dir(exe)
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		return dir
+	}
+	if _, err := os.Stat(filepath.Join(dir, "bot")); err == nil {
+		return dir
+	}
+	return "."
+}
+
+func runGoTest(dir, pkg string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "test", "-v", "-count=1", pkg)
+	cmd.Dir = dir
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	err := cmd.Run()
+	if ctx.Err() == context.DeadlineExceeded {
+		return out.String() + "\n⏰ TIMEOUT: тест превысил 120s", ctx.Err()
+	}
 	return out.String(), err
 }
 

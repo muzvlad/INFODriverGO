@@ -42,7 +42,7 @@ func NewBot(cfg *Config, db *storage.DB) (*Bot, error) {
 		api:        api,
 		cfg:        cfg,
 		db:         db,
-		scheduler:  NewScheduler(db),
+		scheduler:  NewScheduler(db, cfg.Timezone),
 		stopChan:   make(chan struct{}),
 		userStates: make(map[string]string),
 	}

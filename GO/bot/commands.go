@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -143,9 +142,7 @@ func (b *Bot) handleEnable(chatID string) string {
 	msg.ReplyMarkup = &keyboard
 	b.api.Send(msg)
 
-	if chatIDInt, err := strconv.ParseInt(chatID, 10, 64); err == nil && chatIDInt != 0 {
-		b.sendThreeDaysReminders(chatIDInt, chatID)
-	}
+	b.sendThreeDaysReminders(chatID)
 
 	return ""
 }

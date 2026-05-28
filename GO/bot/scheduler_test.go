@@ -237,7 +237,7 @@ func TestValidateEventTime(t *testing.T) {
 }
 
 func TestRescheduleEvent_Daily(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	job := &EventJob{
 		Name:    "test",
@@ -252,7 +252,7 @@ func TestRescheduleEvent_Daily(t *testing.T) {
 }
 
 func TestRescheduleEvent_Weekly(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	job := &EventJob{
 		Name:    "test",
@@ -267,7 +267,7 @@ func TestRescheduleEvent_Weekly(t *testing.T) {
 }
 
 func TestRescheduleEvent_Biweekly(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	job := &EventJob{
 		Name:    "test",
@@ -282,7 +282,7 @@ func TestRescheduleEvent_Biweekly(t *testing.T) {
 }
 
 func TestRescheduleEvent_Monthly(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	job := &EventJob{
 		Name:    "test",
@@ -297,7 +297,7 @@ func TestRescheduleEvent_Monthly(t *testing.T) {
 }
 
 func TestRescheduleEvent_Oneshot(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	job := &EventJob{
 		Name:    "test",
@@ -312,7 +312,7 @@ func TestRescheduleEvent_Oneshot(t *testing.T) {
 }
 
 func TestRescheduleEvent_CatchUp(t *testing.T) {
-	s := NewScheduler(nil)
+	s := NewScheduler(nil, "UTC")
 	now := time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 	past := now.AddDate(0, 0, -2)
 	job := &EventJob{

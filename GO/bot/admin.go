@@ -73,20 +73,7 @@ func (b *Bot) handleAdminList() string {
 
 func (b *Bot) handleAdminStats() string {
 	stats := b.db.GetStatistics()
-	allGroups := b.db.GetAllGroups()
-
-	totalBirthdays := 0
-	totalWeddings := 0
-	totalEvents := 0
-
-	for _, settings := range allGroups {
-		birthdays := b.db.GetBirthdaysForGroup(settings.ChatID)
-		weddings := b.db.GetWeddingsForGroup(settings.ChatID)
-		events := b.db.GetEventsForGroup(settings.ChatID)
-		totalBirthdays += len(birthdays)
-		totalWeddings += len(weddings)
-		totalEvents += len(events)
-	}
+	totals := b.db.GetAllTotals()
 
 	return fmt.Sprintf(`📊 *Подробная статистика:*
 
@@ -107,7 +94,7 @@ func (b *Bot) handleAdminStats() string {
 🎉 *Поздравления:*
 • В базе: %d шт.`,
 		stats["total_groups"], stats["groups_with_notifications"], stats["groups_without_notifications"],
-		totalBirthdays, totalWeddings, totalEvents,
+		totals["total_birthdays"], totals["total_weddings"], totals["total_events"],
 		len(b.congratulations))
 }
 

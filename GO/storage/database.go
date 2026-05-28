@@ -62,8 +62,8 @@ func NewDB(basePath string) (*DB, error) {
 		return nil, err
 	}
 
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(12)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		logger.Errorf("[DB] WAL pragma error: %v", err)
@@ -446,6 +446,13 @@ func (d *DB) UpdateEvent(chatID, oldName, newName, eventType, timeStr, text stri
 	defer d.mu.Unlock()
 
 	if !strings.EqualFold(oldName, newName) {
+		var count int
+		d.db.QueryRow(`SELECT COUNT(*) FROM events WHERE chat_id = ? AND LOWER(name) = LOWER(?) AND LOWER(name) != LOWER(?)`,
+			chatID, newName, oldName).Scan(&count)
+		if count > 0 {
+			logger.Warnf("[DB] UpdateEvent conflict: event %q already exists in %s", newName, chatID)
+			return false
+		}
 		_, err := d.db.Exec(`DELETE FROM events WHERE chat_id = ? AND LOWER(name) = LOWER(?)`, chatID, oldName)
 		if err != nil {
 			logger.Errorf("[DB] UpdateEvent delete error: %v", err)
@@ -633,6 +640,22 @@ func (d *DB) SeedWishesFromJSON(congratulations []string, weddingWishes []string
 	}
 
 	return nil
+}
+
+func (d *DB) GetAllTotals() map[string]int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var bdCount, wedCount, evtCount int
+	d.db.QueryRow(`SELECT COUNT(*) FROM birthdays`).Scan(&bdCount)
+	d.db.QueryRow(`SELECT COUNT(*) FROM weddings`).Scan(&wedCount)
+	d.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&evtCount)
+
+	return map[string]int{
+		"total_birthdays": bdCount,
+		"total_weddings": wedCount,
+		"total_events":   evtCount,
+	}
 }
 
 func (d *DB) GetAllEventTemplates() map[string]string {

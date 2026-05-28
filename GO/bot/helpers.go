@@ -18,11 +18,11 @@ func (b *Bot) getChatID(chatID string) int64 {
 	return 0
 }
 
-func (b *Bot) sendThreeDaysReminders(chatIDInt int64, chatID string) {
+func (b *Bot) sendThreeDaysReminders(chatID string) {
 	birthdays := b.db.GetBirthdaysForGroup(chatID)
 	for _, bd := range birthdays {
 		if bd.Year > 0 {
-			b.scheduler.SetupThreeDaysReminder(chatID, bd.Name, bd.Day, bd.Month, bd.Year)
+			b.scheduler.SetupThreeDaysReminder(chatID, bd.Name, bd.Day, bd.Month, bd.Year, "birthday")
 		}
 	}
 }
@@ -51,8 +51,8 @@ func (b *Bot) handleAdd(chatID, args string) string {
 			msg = fmt.Sprintf("✅ День рождения %s (%02d.%02d.%d) добавлен!", name, day, month, year)
 		}
 
-		if chatIDInt, err := strconv.ParseInt(chatID, 10, 64); err == nil && chatIDInt != 0 && year > 0 {
-			b.scheduler.SetupThreeDaysReminder(chatID, name, day, month, year)
+		if year > 0 {
+			b.scheduler.SetupThreeDaysReminder(chatID, name, day, month, year, "birthday")
 		}
 
 		return msg
@@ -195,8 +195,8 @@ func (b *Bot) handleWedding(chatID, args string) string {
 			msg = fmt.Sprintf("✅ Годовщина свадьбы %s (%02d.%02d.%d) добавлена!", name, day, month, year)
 		}
 
-		if chatIDInt, err := strconv.ParseInt(chatID, 10, 64); err == nil && chatIDInt != 0 && year > 0 {
-			b.scheduler.SetupThreeDaysReminder(chatID, name, day, month, year)
+		if year > 0 {
+			b.scheduler.SetupThreeDaysReminder(chatID, name, day, month, year, "wedding")
 		}
 
 		return msg

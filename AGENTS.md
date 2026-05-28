@@ -1,6 +1,18 @@
 # INFODriverGO — Changelog
 
-## v1.13 (current)
+## v2.0 (current)
+- Fix scheduler timezone: `time.Now()` заменён на `time.Now().In(location)` во всех методах — уведомления теперь приходят по часовому поясу из `TIMEZONE` env, а не по системному
+- Fix UpdateEvent: добавлена проверка `SELECT COUNT(*)` перед `INSERT OR REPLACE` — редактирование не может перезаписать чужое событие
+- Fix restart check (23:30): `lastRestartCheck` инициализируется как предыдущий день 23:30 — больше не пропускает первый день при старте после 23:05
+- Fix reminder type detection: `SetupThreeDaysReminder` принимает явный параметр `reminderType` вместо определения по `strings.Contains(name, "свадьба")`
+- Optimize stats: новые SQL-запросы `COUNT(*)` по каждой таблице вместо N+1 итерации по всем группам (функция `GetAllTotals`)
+- Fix SQLite pool: `MaxOpenConns` 25→1, `MaxIdleConns` 12→1 (для SQLite одно соединение оптимальнее)
+- Remove dead code: `lastNotificationSent` — не используется, удалён из Scheduler
+- Fix inconsistent callbacks: `go` добавлен в DELETE-обработчик `onTemplatesChanged` (был синхронным, POST/PUT — асинхронными)
+- Fix tests timeout: удалён `WriteTimeout: 10s` (сервер), добавлен `context.WithTimeout 120s` (на каждый тест-пакет), `cmd.Dir` привязывается к директории с `go.mod` через `findModuleDir` — тесты работают даже при запуске бинарника из другой папки
+- Remove unused import: `strconv` из commands.go
+
+## v1.13
 - Fix data races: чтение `b.congratulations`/`b.weddings`/`b.events` теперь под `RLock`
 - Fix reminder key mismatch: `SetupThreeDaysReminder` и `RemoveReminderJob` используют одинаковый формат ключа (с именем) — напоминания корректно удаляются при `/delete` и `/несвадьба`
 - Fix events from admin panel: убран `go` из вызова `onEventsChanged`, добавлен `SetupAndCheckEvents` — джоб создаётся синхронно и сразу проверяется (без ожидания 30с цикла); добавлен `force`-параметр в `checkEventJobs` — при добавлении события grace period не применяется, событие триггерится немедленно
