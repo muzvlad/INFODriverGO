@@ -1,0 +1,48 @@
+# Environment variables with secrets
+.env
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# User data - groups with personal info
+groups/*.json
+!groups/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# PyInstaller
+*.spec
+*.exe
+
+# Temporary files
+*.tmp
+*.temp
