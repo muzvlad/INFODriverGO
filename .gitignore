@@ -13,6 +13,7 @@ __pycache__/
 
 # User data - groups with personal info
 groups/*.json
+!groups/template.json
 !groups/.gitkeep
 
 # Logs
